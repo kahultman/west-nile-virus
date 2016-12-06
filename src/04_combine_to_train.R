@@ -2,7 +2,7 @@
 
 load("./data/station1.RData")
 load("./data/trainshort.RData")
-
+load("./data/train.RData")
 library(dplyr)
 
 station1select <- select(station1, 
@@ -25,9 +25,8 @@ station1select <- select(station1,
                          precip10d)
 
 trainset1 <- left_join(trainshort, station1select, by = "Date")
-
-str(trainshort)
-str(station1select)
-str(trainset1)
-
 save(trainset1, file = "./data/trainset1.RData")
+
+
+trainset2 <- left_join(train, station1select, by = "Date")
+save(trainset2, file = "./data/trainset2.RData")
