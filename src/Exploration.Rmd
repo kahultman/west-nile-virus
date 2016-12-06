@@ -1,0 +1,48 @@
+---
+title: "WNV Exploration"
+author: "Keith Hultman"
+date: "November 19, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+load("./data/trainset1.RData")
+
+
+#trainset1$Week <- trainset1$Date$yday -
+  
+trainset1$Date <- as.POSIXlt(trainset1$Date)
+trainset1$Year <- trainset1$Date$year+1900
+trainset1$Week <- floor((trainset1$Date$yday - trainset1$Date$wday + 7) /7)
+
+plot(trainset1$Week, trainset1$NumMosquitos)
+
+
+library(dplyr)
+
+ts3 <- trainset1 %>% select(Week, NumMosquitos) %>%
+  group_by(Week) %>%
+  summarise(avg = mean(NumMosquitos)) 
+
+
+ggplot(ts3, aes(x=Week, y=avg)) + geom_point() + geom_smooth()
+
+ggplot(trainset1, aes(x=Tmin, y=NumMosquitos)) + geom_point() + geom_smooth(method = lm)
+
+ggplot(trainset1, aes(x=DewPoint, y=NumMosquitos)) + geom_point() + geom_smooth(method = lm)
+
+ggplot(trainset1, aes(x=(Sunset - Sunrise), y=NumMosquitos)) + geom_point() + geom_smooth(method = lm)
+
+ggplot(trainset1, aes(x=ma10, y=NumMosquitos)) + geom_point() + geom_smooth(method = lm)
+
+ggplot(trainset1, aes(x=precip10d, y=NumMosquitos)) + geom_point() + geom_smooth(method = lm)
+
+ggplot(trainset1, aes(x=Week, y=NumMosquitos)) + geom_point() + geom_smooth()
+
+ggplot(trainset1, aes(x=(abs(32-Week)), y=NumMosquitos)) + geom_point() + geom_smooth(method = lm)
+
+```

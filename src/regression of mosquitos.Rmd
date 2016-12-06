@@ -1,0 +1,183 @@
+---
+title: "Regression of Mosquitos"
+author: "Keith Hultman"
+date: "November 18, 2016"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+I'm going to be using the West Nile Virus data set for my project. I still have some feature engineering to do, but my current idea is that weather data will help predict the mosquito population and will also have an effect on the presence of West Nile Virus in mosquitos. 
+
+For this exercise I will use linear regression to predict the number of mosquitos using weather data. Then I will use logistic regression to estimate the probability of the presence of West Nile Virus.
+
+```{r setup}
+suppressMessages(library(dplyr))
+load("./data/trainset1.RData")
+dtrain <- filter(trainset1, Date < "2013-01-01")
+dtest <- filter(trainset1, Date >= "2013-01-01")
+```
+
+# Linear Regression of Mosquito population
+
+Create a linear regression model: lm1
+
+The model we will build is  NumMosquitos ~ weather variables 
+
+Where weather variables are: Tmax, Tmin, Tavg, Depart, DewPoint, WetBulb, Sunrise, Sunset, PrecipTotal, ResultSpeed, ma3, ma5, ma10, precip3d, precip5d, precip10d.
+
+
+```{r lm1}
+weathervariables <- c("Tmax", 
+                      "Tmin",
+                      "Tavg",
+                      "Depart",
+                      "DewPoint",
+                      "WetBulb",
+                      "Sunrise",
+                      "Sunset",
+                      "PrecipTotal",
+                      "ResultSpeed",
+                      "ma3",
+                      "ma5",
+                      "ma10",
+                      "precip3d",
+                      "precip5d",
+                      "precip10d")
+
+weathervariables <- paste(weathervariables, collapse = "+")
+fmla <- paste("NumMosquitos", weathervariables, sep = "~")
+
+lm1 <- lm(fmla, data = dtrain)
+dtrain$predNumMosq <- predict(lm1, newdata = dtrain)
+dtest$predNumMosq <- predict(lm1, newdata = dtest)
+summary(lm1)
+```
+
+## Plot predicted versus actual for both train and test data sets
+
+```{r lm1 plot}
+suppressMessages(library(ggplot2))
+
+ggplot(data = dtrain, aes(x=predNumMosq, y=NumMosquitos)) +
+  geom_point() +
+  geom_smooth(method = lm) +
+  ggtitle("Linear regression model lm1 with Training data")
+
+ggplot(data = dtest, aes(x=predNumMosq, y=NumMosquitos)) + 
+  geom_point(alpha = 0.2, color = "black") +
+  geom_smooth(method = lm) +
+  ggtitle("Linear regression model lm1 with Test data")
+```
+
+## Plot residuals
+
+From now on, all graphs will show performance on test data. 
+
+```{r lm1 residual plot}
+ggplot(data = dtest, aes(x=predNumMosq, y=(NumMosquitos - predNumMosq))) +
+  geom_point(alpha = 0.05)
+```
+
+## Build a simpler model: lm2
+
+This model we will build is NumMosquitos ~ precip10d + ma10 + Tmin + Summer + Year 
+
+These were the most predictive and non-correlated variables from the first model with two new features. The Year and the number of weeks from the week of the summer's solstice. 
+```{r lm2}
+lm2 <- lm(NumMosquitos ~ precip10d + ma10 + Tmin + Summer + Year, data = dtrain)
+summary(lm2)
+dtrain$predNumMosq2 <- predict(lm2, newdata = dtrain)
+dtest$predNumMosq2 <- predict(lm2, newdata = dtest)
+
+ggplot(data = dtest, aes(x=predNumMosq2, y=NumMosquitos)) + 
+  geom_point(alpha = 0.2, color = "black") +
+  geom_smooth(method = lm) +
+  ggtitle("Linear regression model with Test data")
+  
+
+```
+
+## Target variable exploration
+
+The target variable is not normally distributed - many of the cases have either zero or the max number of mosquitos (50). The log2 transformation has a better spread, and might be better for fitting a linear model.
+
+```{r NumMosquitos distribution}
+hist(dtrain$NumMosquitos)
+hist(log2(dtrain$NumMosquitos))
+```
+
+## Let's try using log2 of NumMosquitos
+
+```{r lm3}
+
+
+lm3 <- lm(log2(NumMosquitos) ~ precip10d + ma10 + Tmin + Summer + Year, data = dtrain)
+
+summary(lm3)
+
+dtrain$predNumMosq <- 2 ^ (predict(lm3, newdata = dtrain))
+dtest$predNumMosq <- 2 ^ (predict(lm3, newdata = dtest))
+
+ggplot(data = dtest, aes(x=predNumMosq, y=(NumMosquitos - predNumMosq))) +
+  geom_point(alpha = 0.05) + geom_smooth(method = lm)
+```
+
+R^2 actually looks worse here! 
+
+
+# Logistic regression for WnvPresent
+
+Now, lets try and estimate a categorical dependent variable, the presense of West Nile Virus. 
+
+In the actual test data, what I would like to do is get an estimate for the number of mosquitoes, and use that as an independent variable as part of the classification algorithm to estimate the probability of West Nile Virus. However, in order to find the optimal parameters for that second step, I can use the actual values for number of Mosquitos. This is kind of like the 'cheating' that Dr. Kulich mentioned, where we are using one of the targets as an input for parameter optimization. In practice, the WnvPresent value would be replaced with the estimated prediction. 
+
+```{r logistic regression for WnvPresent}
+lgm1 <- glm(WnvPresent ~ NumMosquitos + precip10d + ma10 + Tmin + Summer + Year, data = dtrain, family = binomial(link = "logit"))
+dtrain$WnvPred <- predict(lgm1, newdata = dtrain, type = "response")
+dtest$WnvPred <- predict(lgm1, newdata = dtest, type = "response")
+summary(lgm1)
+```
+
+## Plotting distribution of prediction
+
+```{r Logistic prediction distribution}
+ggplot(dtest, aes(x=WnvPred, color=WnvPresent)) +
+  geom_density()
+```
+
+
+## Examine ROC Curve
+
+Now we can take a look at how well our model will perform based on where the cutoff for probability should be for predicting WnvPresent.
+
+```{r Examine ROC Curve}
+suppressMessages(library(ROCR))
+pred <- prediction(dtest$WnvPred, dtest$WnvPresent)
+perf <- performance(pred, "tpr", "fpr")
+
+plot(perf)
+
+
+```
+
+## Examine crosstabs where False positives are at 0.4
+
+The ROC curve is not great. But let's aim for a cutoff where our true positive rate is >0.75 and false positive rate is <0.4.
+
+```{r}
+cutoff <- performance(pred, "fpr", x.measure = "cutoff")
+plot(cutoff)
+
+summary(dtest$WnvPred)
+ctab.test <- table(Predicted=dtest$WnvPred>0.15, Present=dtest$WnvPresent) 
+print(ctab.test)
+```
+
+So if we use a cutoff of 0.15 for our probability of West Nile Virus, we could target 102 sites, and 37 of them would have West Nile. Of course, we would miss most of the West Nile locations - 202 would be missed. 
+
+```{r Print Sesson Info for Reproducibility}
+sessionInfo()
+```
+
