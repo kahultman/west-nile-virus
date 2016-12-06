@@ -22,7 +22,7 @@ trainset1$Week <- floor((trainset1$Date$yday - trainset1$Date$wday + 7) /7)
 plot(trainset1$Week, trainset1$NumMosquitos)
 
 
-library(dplyr)
+library(tidyverse)
 
 ts3 <- trainset1 %>% select(Week, NumMosquitos) %>%
   group_by(Week) %>%
@@ -46,3 +46,13 @@ ggplot(trainset1, aes(x=Week, y=NumMosquitos)) + geom_point() + geom_smooth()
 ggplot(trainset1, aes(x=(abs(32-Week)), y=NumMosquitos)) + geom_point() + geom_smooth(method = lm)
 
 ```
+
+
+## Animated map!
+
+```{r}
+library(tidyverse)
+library(gganimate)
+
+```
+
