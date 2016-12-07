@@ -53,24 +53,72 @@ ggplot(trainset1, aes(x=(abs(32-Week)), y=NumMosquitos)) + geom_point() + geom_s
 ```{r}
 library(tidyverse)
 library(gganimate)
+library(animation)
+
 
 load("./data/trainset2.RData")
 byweek <- group_by(trainset2, Week) %>% summarize(weekly_avg_mosq=mean(NumMosquitos))
 
-map_mosq <- ggplot(trainset2, aes(x=Longitude, y=Latitude, size=NumMosquitos, frame=Week)) + geom_point() 
-gg_animate(map_mosq)
+map_mosq <- ggplot(trainset2, aes(x=Longitude, y=Latitude, 
+                                  size=NumMosquitos, 
+                                  color=WnvPresent,
+                                  frame=Week)) + geom_point() + ggtitle("Animated map of mosquitos and presence of West Nile Virus in Chicago")
+
+animated_map_mosq <- gg_animate(map_mosq)
+
+gg_animate_save(animated_map_mosq, filename = "Animated Mosquito Map.gif")
 ```
 
 ```{r}
-library(gapminder)
+library(tweenr)
 
-p <- ggplot(gapminder, aes(gdpPercap, lifeExp, size = pop, color = continent, frame = year)) +
-  geom_point() +
-  scale_x_log10()
+traincomplete <- complete(trainset2, Longitude, Latitude, Week)
 
-p
+table(traincomplete$Trap[traincomplete$Week==21])
+T054week21 <- filter(traincomplete, Trap == "T054", Week == 21)
+View(T054week21)
 
-gg_animate(p)
+#traincomplete <- traincomplete %>% group_by(Trap, Week) %>% summarise()
+
+tw_mosq <- split(traincomplete, f = traincomplete$Week)
+tw_mosq[[1]]
+tw_mosq <- traincomplete %>% split(.$Week) %>%
+  tweenr::tween_states(tweenlength = 5, statelength = 0, 
+                       ease = "linear",
+                       nframes = 175)
+map_mosq <- ggplot(tw_mosq, aes(x=Longitude, y=Latitude, 
+                                  size=NumMosquitos, 
+                                  color=WnvPresent,
+                                  frame=.frame)) + geom_point() + ggtitle("Animated map of mosquitos and presence of West Nile Virus in Chicago")
 
 ```
+
+```{r}
+library(ggmap)
+
+chicago <- get_map("Chicago")
+
+ani_map <- ggmap(chicago) + 
+  geom_point(data = trainset2, aes(x=Longitude, y=Latitude, 
+                                   size=NumMosquitos, 
+                                   color=WnvPresent,
+                                   frame=Week)) + 
+  ggtitle("Animated map of mosquitos and presence of West Nile Virus in Chicago")
+
+gg_animate(ani_map)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
 
