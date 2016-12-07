@@ -62,12 +62,36 @@ byweek <- group_by(trainset2, Week) %>% summarize(weekly_avg_mosq=mean(NumMosqui
 map_mosq <- ggplot(trainset2, aes(x=Longitude, y=Latitude, 
                                   size=NumMosquitos, 
                                   color=WnvPresent,
+                                  alpha = .5,
                                   frame=Week)) + geom_point() + ggtitle("Animated map of mosquitos and presence of West Nile Virus in Chicago")
 
 animated_map_mosq <- gg_animate(map_mosq)
-
+animated_map_mosq
 gg_animate_save(animated_map_mosq, filename = "Animated Mosquito Map.gif")
 ```
+
+By year and week
+
+```{r}
+byyearweek <- group_by(trainset2, Year, Week) %>% summarize(weekly_avg_mosq=mean(NumMosquitos))
+
+trainset2$timepoint <- ((trainset2$Year - 2007) + (trainset2$Week / 52)) * 52
+
+map_mosq <- ggplot(trainset2, aes(x=Longitude, y=Latitude, 
+                                  size=NumMosquitos, 
+                                  color=WnvPresent,
+                                  alpha = .5,
+                                  frame=timepoint)) + geom_point() + ggtitle("Animated map of mosquitos and \npresence of West Nile Virus in Chicago \n")
+map_mosq
+
+gg_animate_save(map_mosq, filename = "mosq_map.gif")
+gg_animate(map_mosq, interval=0.2)
+animated_map_mosq <- gg_animate(map_mosq)
+animated_map_mosq
+
+gg_animate_save(animated_map_mosq, filename = "mosq_map.gif")
+```
+
 
 ```{r}
 library(tweenr)
@@ -98,12 +122,16 @@ tw_mosq2 <- tween_states(tw_mosq, tweenlength = 3,
 map_mosq <- ggplot(tw_mosq2, aes(x=Longitude, y=Latitude, 
                                   size=NumMosSum, 
                                   color=WnvSum,
-                                  frame=.frame)) + geom_point() + ggtitle("Animated map of mosquitos and presence of West Nile Virus in Chicago")
+                                  alpha = 0.5,
+                                  frame=.frame)) + 
+  geom_point() + 
+  ggtitle("Animated map of mosquitos and presence of West Nile Virus in Chicago")
 
 save(map_mosq, file = "./data/map_mosq.RData")
 load("./data/map_mosq.RData")
 gg.map <- gg_animate(map_mosq)
 gg_animate_save(gg.map, filename = "mosq.map.gif")
+gg_animate(map_mosq, interval=0.2)
 ```
 
 ```{r}
@@ -120,6 +148,7 @@ ani_map <- ggmap(chicago) +
 
 gg_ani_map <- gg_animate(ani_map)
 gg_animate_save(gg_ani_map, filename = "Chicago Mosq animated map.gif")
+gg_animate(ani_map, interval = 0.2)
 ```
 
 
