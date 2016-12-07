@@ -72,25 +72,38 @@ gg_animate_save(animated_map_mosq, filename = "Animated Mosquito Map.gif")
 ```{r}
 library(tweenr)
 
-traincomplete <- complete(trainset2, Longitude, Latitude, Week)
+traincomplete <- complete(trainset2, Trap, nesting(Longitude, Latitude), Week)
 
-table(traincomplete$Trap[traincomplete$Week==21])
-T054week21 <- filter(traincomplete, Trap == "T054", Week == 21)
-View(T054week21)
+traincomplete <- trainset2 %>% group_by(Longitude, Latitude, Week) %>% summarise(NumMosSum = sum(NumMosquitos), WnvSum = any(WnvPresent))
 
-#traincomplete <- traincomplete %>% group_by(Trap, Week) %>% summarise()
 
-tw_mosq <- split(traincomplete, f = traincomplete$Week)
-tw_mosq[[1]]
-tw_mosq <- traincomplete %>% split(.$Week) %>%
-  tweenr::tween_states(tweenlength = 5, statelength = 0, 
+
+traincomplete <- ungroup(traincomplete)
+
+traincomplete$Week <- as.factor(traincomplete$Week)
+traincomplete2 <- complete(traincomplete, Week, Longitude, Latitude, fill = list(NumMosSum = 0, WnvSum = FALSE))
+
+
+table(traincomplete2$Week)
+?split
+tw_mosq <- split(traincomplete2, f = traincomplete2$Week)
+tw_mosq[[2]]
+
+
+tw_mosq2 <- tween_states(tw_mosq, tweenlength = 3, 
+                       statelength = 1, 
                        ease = "linear",
-                       nframes = 175)
-map_mosq <- ggplot(tw_mosq, aes(x=Longitude, y=Latitude, 
-                                  size=NumMosquitos, 
-                                  color=WnvPresent,
+                       nframes = 100)
+
+map_mosq <- ggplot(tw_mosq2, aes(x=Longitude, y=Latitude, 
+                                  size=NumMosSum, 
+                                  color=WnvSum,
                                   frame=.frame)) + geom_point() + ggtitle("Animated map of mosquitos and presence of West Nile Virus in Chicago")
 
+save(map_mosq, file = "./data/map_mosq.RData")
+load("./data/map_mosq.RData")
+gg.map <- gg_animate(map_mosq)
+gg_animate_save(gg.map, filename = "mosq.map.gif")
 ```
 
 ```{r}
@@ -105,14 +118,26 @@ ani_map <- ggmap(chicago) +
                                    frame=Week)) + 
   ggtitle("Animated map of mosquitos and presence of West Nile Virus in Chicago")
 
-gg_animate(ani_map)
-
+gg_ani_map <- gg_animate(ani_map)
+gg_animate_save(gg_ani_map, filename = "Chicago Mosq animated map.gif")
 ```
 
 
 
 
 
+```{r}
+df <- data_frame(
+  group = c(1:2, 1),
+  item_id = c(1:2, 2),
+  item_name = c("a", "b", "b"),
+  value1 = 1:3,
+  value2 = 4:6
+)
+df
+df %>% complete(group, item_id, item_name)
+df
+```
 
 
 
