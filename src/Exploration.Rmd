@@ -12,8 +12,6 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 load("./data/trainset1.RData")
 
-
-#trainset1$Week <- trainset1$Date$yday -
   
 trainset1$Date <- as.POSIXlt(trainset1$Date)
 trainset1$Year <- trainset1$Date$year+1900
