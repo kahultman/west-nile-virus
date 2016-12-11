@@ -10,39 +10,42 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
+library(tidyverse)
 load("./data/trainset1.RData")
 
-  
-trainset1$Date <- as.POSIXlt(trainset1$Date)
-trainset1$Year <- trainset1$Date$year+1900
-trainset1$Week <- floor((trainset1$Date$yday - trainset1$Date$wday + 7) /7)
-
-plot(trainset1$Week, trainset1$NumMosquitos)
 
 
-library(tidyverse)
 
-ts3 <- trainset1 %>% select(Week, NumMosquitos) %>%
+
+by_week <- trainset1 %>% select(Week, NumMosquitos) %>%
   group_by(Week) %>%
   summarise(avg = mean(NumMosquitos)) 
 
 
-ggplot(ts3, aes(x=Week, y=avg)) + geom_point() + geom_smooth() + ggtitle("Number of Mosquitos per week") + ylab("Average number of mosquitos per trap")
+ggplot(by_week, aes(x=Week, y=avg)) + geom_point() + geom_smooth() + ggtitle("Number of mosquitos per week") + ylab("Average number of mosquitos per trap per week")
 
-ggplot(trainset1, aes(x=Tmin, y=NumMosquitos)) + geom_point() + geom_smooth(method = lm)
+ggplot(trainset1, aes(x=Tmin, y=NumMosquitos)) + geom_jitter() + geom_smooth() + ggtitle("Number of mosquitos vs temperature") + xlab("Temperature, degree F") + ylab("Average number of mosquitos per trap")
 
-ggplot(trainset1, aes(x=DewPoint, y=NumMosquitos)) + geom_point() + geom_smooth(method = lm)
+ggplot(trainset1, aes(x=DewPoint, y=NumMosquitos)) + geom_jitter() + geom_smooth()+ ylab("Average number of mosquitos per trap")
 
-ggplot(trainset1, aes(x=(Sunset - Sunrise), y=NumMosquitos)) + geom_point() + geom_smooth(method = lm)
+ggplot(trainset1, aes(x=(Sunset - Sunrise), y=NumMosquitos)) + geom_jitter() + geom_smooth()+ ylab("Average number of mosquitos per trap")
 
-ggplot(trainset1, aes(x=ma10, y=NumMosquitos)) + geom_point() + geom_smooth(method = lm)
+ggplot(trainset1, aes(x=ma10, y=NumMosquitos)) + geom_jitter() + geom_smooth()+ ylab("Average number of mosquitos per trap")
 
-ggplot(trainset1, aes(x=precip10d, y=NumMosquitos)) + geom_point() + geom_smooth(method = lm)
+ggplot(trainset1, aes(x=precip10d, y=NumMosquitos)) + geom_jitter() + geom_smooth() + ggtitle("10 day precipitation average")+ ylab("Average number of mosquitos per trap")
 
-ggplot(trainset1, aes(x=Week, y=NumMosquitos)) + geom_point() + geom_smooth()
+ggplot(trainset1, aes(x=Week, y=NumMosquitos)) + geom_jitter() + geom_smooth() + ggtitle("Average number of mosquitos per week")+ ylab("Average number of mosquitos per trap")
 
-ggplot(trainset1, aes(x=(abs(32-Week)), y=NumMosquitos)) + geom_point() + geom_smooth(method = lm)
+ggplot(trainset1, aes(Week, NumMosquitos, group=Week)) + geom_boxplot() + ggtitle("Average number of mosquitos per week")+ ylab("Average number of mosquitos per trap")
 
+ggplot(trainset1, aes(x=(abs(32-Week)), y=NumMosquitos)) + geom_jitter() + geom_smooth() + 
+ggplot(trainset1, aes(x=Summer, y=NumMosquitos)) + geom_jitter() + geom_smooth() + ggtitle("Average number of mosquitos per week from week 32")+ ylab("Average number of mosquitos per trap")
+
+week32 <- trainset1 %>% filter(Week == 32) 
+week24 <- trainset1 %>% filter(Week == 24)
+
+qqnorm(week32$NumMosquitos)
+qqnorm(week24$NumMosquitos)
 ```
 
 
@@ -149,26 +152,25 @@ gg_animate_save(gg_ani_map, filename = "Chicago Mosq animated map.gif")
 gg_animate(ani_map, interval = 0.2)
 ```
 
-
-
-
+Heatmap
 
 ```{r}
-df <- data_frame(
-  group = c(1:2, 1),
-  item_id = c(1:2, 2),
-  item_name = c("a", "b", "b"),
-  value1 = 1:3,
-  value2 = 4:6
-)
-df
-df %>% complete(group, item_id, item_name)
-df
+wnpositive <- filter(trainset1, WnvPresent == TRUE)
+ggmap(chicago) + geom_jitter(aes(x = Longitude, y = Latitude), color = "red", 
+                             alpha = 0.1, size = 2, data = wnpositive)
+
+load("./data/traps.RData")
+
+ggmap(chicago) + geom_density2d(data = wnpositive, aes(x = Longitude, y = Latitude), size = 0.3) + 
+  stat_density2d(data = wnpositive, aes(x = Longitude, y = Latitude, fill = ..level.., alpha = ..level..), size = 0.01, 
+    bins = 16, geom = "polygon") + 
+  scale_fill_gradient(low = "green", high = "red") + 
+  scale_alpha(range = c(0, 0.3), guide = FALSE) + 
+  ggtitle("Heat map of West Nile Virus positive traps") + 
+  geom_point(data = traps, aes(x = Longitude, y = Latitude), shape = 4)
+
+
 ```
-
-
-
-
 
 
 

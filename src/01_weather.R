@@ -1,7 +1,7 @@
 # Load and transform data 
 # Very basic data manipulation for getting data into .Rdata format.
 
-#library(tidyverse)
+library(tidyverse)
 #library(plyr)
 # weather.csv ---> weather.Rdata
 weather <- read.csv('./data/weather.csv', na.strings = "M")
@@ -31,7 +31,7 @@ weather$PrecipTotal <- as.numeric(weather$PrecipTotal)
 levels(weather$SnowFall)[levels(weather$SnowFall)=="  T"] <- "0.01"
 weather$SnowFall <- as.numeric(as.character(weather$SnowFall))
 
-save(weather, file = "data/weather.Rdata")
+
 
 # 02_weather
 #
@@ -39,15 +39,13 @@ save(weather, file = "data/weather.Rdata")
 #
 
 
-library(dplyr)
-library(caTools)
 
-load("./data/weather.Rdata")
+library(caTools)
 
 # For each weather station, compute some running averages
 # 3 day average temp
 station1 <- filter(weather, Station == "1")
-station2 <- filter(weather, Station == "2")
+#station2 <- filter(weather, Station == "2")
 
 station1$ma3 <- runmean(station1$Tavg, 3, align = "right")
 # 5 day average temp
@@ -55,7 +53,6 @@ station1$ma5 <- runmean(station1$Tavg, 5, align = "right")
 # 10 day average temp
 station1$ma10 <- runmean(station1$Tavg, 10, align = "right")
 
-plot(station1$Date, station1$ma10)
 
 # 3 day precip
 station1$precip3d <- runmean(station1$PrecipTotal, 3, align = "right")
@@ -66,3 +63,4 @@ station1$precip10d <- runmean(station1$PrecipTotal, 10, align = "right")
 
 
 save(station1, file = "./data/station1.RData")
+save(weather, file = "data/weather.Rdata")

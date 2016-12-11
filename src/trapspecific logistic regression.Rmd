@@ -1,0 +1,54 @@
+---
+title: "logistic regression per trap"
+author: "Keith Hultman"
+date: "12/10/2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Incorporating geographic information - a model for each trap
+
+After seeing how highly varied the density of WNV positive traps in the heat map and animated plots, my next set of models will incorporate geographic information. 
+
+There are various ways to incorporate geography. The easiest way to do this is to incorporate the trap id in the model. A more elegant method would incorporate the longitude and latitude. The longitude/latitude method would require a decision tree or other model that allows for breaking up or clustering the locations in some way. 
+
+The will try to use the first method in a logistic regression model. 
+
+```{r}
+
+suppressMessages(library(tidyverse))
+load("./data/trainset1.RData")
+dtrain <- filter(trainset1, Date < "2013-01-01")
+dtest <- filter(trainset1, Date >= "2013-01-01")
+
+
+lgm1 <- glm(WnvPresent ~ NumMosquitos + precip10d + ma10 + Tmin + Summer + Year + Trap, data = dtrain, family = binomial(link = "logit"))
+dtrain$WnvPred <- predict(lgm1, newdata = dtrain, type = "response")
+dtest$WnvPred <- predict(lgm1, newdata = dtest, type = "response")
+summary(lgm1)
+
+ggplot(dtrain, aes(x=WnvPred, color=WnvPresent)) +
+  geom_density()
+```
+
+Now I will create a logistic regression for each trap.
+
+```{r}
+library(broom)
+
+
+dtrain <- tbl_df(dtrain)
+dtrain
+
+bytrap <- dtrain %>% nest(-Trap) %>% 
+  mutate(models = map(data, ~ glm(WnvPresent ~ NumMosquitos + precip10d + ma10 + Tmin + Summer + Year, ., family = binomial(link = "logit")))) %>% 
+  mutate(tidied = map(models, tidy)) %>% 
+  unnest(tidied)
+
+arrange(bytrap, p.value)
+
+```
+

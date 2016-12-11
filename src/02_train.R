@@ -30,3 +30,9 @@ trainshort <- select(train,
 
 save(train, file = "./data/train.RData")
 save(trainshort, file = "./data/trainshort.RData")
+
+
+## Trap locations
+
+traps <- train %>% group_by(Trap, Longitude, Latitude) %>% summarise(number =n()) %>% arrange(Trap)
+save(traps, file = "./data/traps.RData")
