@@ -30,3 +30,5 @@ save(trainset1, file = "./data/trainset1.RData")
 
 trainset2 <- left_join(train, station1select, by = "Date")
 save(trainset2, file = "./data/trainset2.RData")
+library(caret)
+?findCorrelation()

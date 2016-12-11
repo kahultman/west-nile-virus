@@ -16,6 +16,8 @@ train$Date2 <- NULL
 library(dplyr)
 trainshort <- select(train, 
                      Date, 
+                     Longitude,
+                     Latitude,
                      Year,
                      Week,
                      Summer,
