@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Incorporating geographic information - a model for each trap
 
-After seeing how highly varied the density of WNV positive traps in the heat map and animated plots, my next set of models will incorporate geographic information. 
+After seeing how highly varied the density of WNV positive traps in the heat map and animated plots, my next set of models will try to incorporate geographic information. 
 
 There are various ways to incorporate geography. The easiest way to do this is to incorporate the trap id in the model. A more elegant method would incorporate the longitude and latitude. The longitude/latitude method would require a decision tree or other model that allows for breaking up or clustering the locations in some way. 
 
@@ -49,6 +49,12 @@ bytrap <- dtrain %>% nest(-Trap) %>%
   unnest(tidied)
 
 arrange(bytrap, p.value)
+
+```
+
+Decision tree
+
+```{r}
 
 ```
 

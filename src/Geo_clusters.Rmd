@@ -1,0 +1,46 @@
+---
+title: "location cluster"
+author: "Keith Hultman"
+date: "12/11/2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Use k-means clustering on geographic location and 'hotspot' id
+
+```{r}
+load("./data/trainset1.RData")
+library(tidyverse)
+
+trap_geo <- trainset1 %>% group_by(Trap, Longitude, Latitude) %>% summarise(number = n(), WnvTot = sum(WnvPresent)) %>% mutate(WnvAvg = WnvTot/number) %>% arrange(Trap)
+
+trap_geo_hot <- select(trap_geo, Trap, Latitude, Longitude, WnvAvg)
+trap_geo <- select(trap_geo, Trap, Latitude, Longitude)
+
+# Geographic clusters
+set.seed(123)
+geo.cl <- kmeans(trap_geo[,2:3], centers = 5)
+trap_geo_hot$geo.cl <- geo.cl$cluster
+trap_geo_hot$geo.cl <- as.factor(trap_geo$geo.cl)
+ggplot(trap_geo_hot, aes(Longitude, Latitude, color = geo.cl)) + geom_point()
+
+# Geographic + Hotspot clusters
+set.seed(123)
+geo.hot.cl <- kmeans(trap_geo_hot[,2:4], centers = 6)
+trap_geo_hot$geo.hot.cl <- geo.hot.cl$cluster
+trap_geo_hot$geo.hot.cl <- as.factor(trap_geo_hot$geo.hot.cl)
+ggplot(trap_geo_hot, aes(Longitude, Latitude, color = geo.hot.cl)) + geom_point()
+
+# Add Geographic hotspot clusters to trainset
+
+
+
+trainset1 <- left_join(trainset1, trap_geo_hot, by = c("Trap", "Longitude", "Latitude"))
+
+save(trainset1, file = "./data/trainset3.RData")
+
+```
+

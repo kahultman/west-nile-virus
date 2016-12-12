@@ -3,6 +3,7 @@ title: "WNV Project"
 author: "Keith Hultman"
 date: "12/4/2016"
 output: html_document
+TOC: TRUE
 ---
 
 ```{r setup, include=FALSE}
@@ -25,25 +26,49 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Data Understanding 1
 
+ggplots of several variables 
+
 ## Data Preparation 1
 
 
 ## Modeling 1a: Linear regression to predict mosquito population
+```{r}
+
+```
 
 
 ## Modeling 1b: Logistic regression to predict WNV infection
 
+```{r}
+
+```
 
 ## Evaluation 1
 
+```{r}
+
+```
 
 # CRISP Round 2
-## Business Understanding 2
+
 
 
 ## Data Understanding 2
 
+Map of Wnv density
+
+```{r}
+
+```
+
+
 ## Data Preparation 2
+
+Add clustering regions
+
+```{r}
+
+```
 
 
 ## Modeling 2a: 

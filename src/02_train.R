@@ -1,6 +1,7 @@
 # Train
 
 train <- read.csv("./data/train.csv")
+train <- tbl_df(train)
 str(train)
 train$Date <- as.Date(train$Date, "%Y-%m-%d")
 train$WnvPresent <- as.logical(train$WnvPresent)
@@ -13,18 +14,31 @@ train$Summer <- abs(32-train$Week)
 
 train$Date2 <- NULL
 
-library(dplyr)
+
+library(plyr)
+library(tidyverse)
+
+
+train <- train %>% mutate(c.pip = ifelse(Species == "CULEX PIPIENS", 1, 0), 
+                          c.res = ifelse(Species == "CULEX RESTUANS", 1, 0),
+                          c.pip.c.res = ifelse(Species == "CULEX PIPIENS/RESTUANS", 1, 0), 
+                          c.ter = ifelse(Species == "CULEX TERRITANS", 1, 0),
+                          c.oth = ifelse(!(Species %in% c("CULEX PIPIENS", "CULEX RESTUANS", "CULEX PIPIENS/RESTUANS", "CULEX TERRITANS")), 1,0))
+
+train <- train %>% mutate(Species2 = Species) 
+
+train$Species2 <- revalue(train$Species2, c("CULEX ERRATICUS" = "OTHER",
+                         "CULEX SALINARIUS" = "OTHER",
+                         "CULEX TERRITANS" = "OTHER"))
+
 trainshort <- select(train, 
-                     Date, 
-                     Longitude,
-                     Latitude,
-                     Year,
-                     Week,
-                     Summer,
-                     Species,
-                     Trap,
-                     NumMosquitos,
-                     WnvPresent) 
+                     -Address,
+                     -Block,
+                     -Street,
+                     -AddressNumberAndStreet,
+                     -AddressAccuracy)
+                     
+                     
 
 
 

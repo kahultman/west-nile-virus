@@ -143,8 +143,7 @@ summary(lgm1)
 ## Plotting distribution of prediction
 
 ```{r Logistic prediction distribution}
-ggplot(dtest, aes(x=WnvPred, color=WnvPresent)) +
-  geom_density()
+ggplot(dtest, aes(x=WnvPred, color=WnvPresent)) +  geom_density()
 ```
 
 
