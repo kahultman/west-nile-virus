@@ -8,30 +8,51 @@ TOC: TRUE
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = '../')
 ```
 
 
 # West Nile Virus Prediction
 
+This project will attempt to predict the likelihood of a positive test for West Nile Virus in mosquitos captured using traps around Chicago, IL. The data sets originate from the Kaggle competition, [West Nile Virus Prediction](https://www.kaggle.com/c/predict-west-nile-virus). 
+
+This analysis will use an iterative approach to finding a production model for West Nile forecasting. There are several data science iterative methods, and I will use the [CRISP](./images/CRISP.png) model for organizing this project. 
+
+# CRISP Iteration 1
+
+## Business Understanding 
+
+Kaggle supplies five data sets for the competition, three of which can be used in model training. The train.csv file includes several variables associated with each West Nile Virus test including the trap id, geo-coordinates, date, species of mosquito present, number of mosquitos present, and a binary variable indicating the presence or absence of West Nile Virus (WnvPresent), our target variable. The test.csv contains all of the same features as the train.csv file except the number of mosquitos present and the target WnvPresent variable. These data sets were obtained from West Nile Virus testing period between 2007 and 2014 with the training set containing the odd years and the test set containing the even years. The weather.csv file contains historic weather data collected at the O'Hare and Midway airports concurrent with the mosquito testing time period. The spray.csv file includes the date and location of chemical spraying conducted by the city during 2011 and 2013. Since this spray data set would only have a large impact during one of the training years, I did not include the spray data in any of my models. 
+
+## Data Understanding 
+
+One of the largest factors in whether West Nile Virus is present or not is the number of mosquitos found in each trap. However, this variable is not present in the test set, and will need to be imputed from other variables before a final model can be fit to the presence of West Nile. 
+
+```{r}
+library(tidyverse)
+load("./data/trainset1.RData")
+
+ggplot(trainset1, aes(x=WnvPresent, y=NumMosquitos)) + geom_boxplot() + ggtitle("Number of mosquitos in West Nile Virus negative and positive traps") + xlab("West Nile Virus present in trap") + ylab("Number of mosquitos in trap")
+```
+
+Based on this initial data exploration, I will first try and develop a model that predicts the number of mosquitos in each trap and then use that predicted value as a variable in a model that predicts whether West Nile is present or absent. For predicting the number of mosquitos, I will primarily be using weather variables and weekly historic averages. 
+
+```{r}
+ggplot(trainset1, aes(x=Tavg, y=NumMosquitos)) + geom_jitter() + geom_smooth(method=lm) + ggtitle("Number of mosquitos vs average daily temperature") + xlab("Average daily temperature, degree F") + ylab("Number of mosquitos per trap")
+
+```
 
 
-# Data set description
+## Data Preparation 
 
-
-
-# CRISP Round 1
-
-## Business Understanding 1
-
-
-## Data Understanding 1
-
-ggplots of several variables 
-
-## Data Preparation 1
 
 
 ## Modeling 1a: Linear regression to predict mosquito population
+
+For this first round of modeling, I will use linear regression to predict the number of mosquitos using weather data. I expect 
+
+Then I will use logistic regression to estimate the probability of the presence of West Nile Virus.
+
 ```{r}
 
 ```
@@ -43,24 +64,53 @@ ggplots of several variables
 
 ```
 
-## Evaluation 1
+## Evaluation 
 
 ```{r}
 
 ```
 
-# CRISP Round 2
+# CRISP Iteration 2
 
-
+ 
 
 ## Data Understanding 2
 
-Map of Wnv density
+The first model did not involve geographical information or any trap-specific information. Let's examine the relationship between geography and West Nile presence. First let's look at a map of Wnv as a density plot. Here, the density is based off of the overall positive count for each trap. 
+
+ 
+
+```{r}
+library(ggmap)
+chicago <- get_map("Chicago")
+wnpositive <- filter(trainset1, WnvPresent == TRUE)
+load("./data/traps.RData")
+
+ggmap(chicago) + geom_density2d(data = wnpositive, aes(x = Longitude, y = Latitude), size = 0.3) + 
+  stat_density2d(data = wnpositive, aes(x = Longitude, y = Latitude, fill = ..level.., alpha = ..level..), size = 0.01, 
+    bins = 16, geom = "polygon") + 
+  scale_fill_gradient(name="Number of WNV+", low = "green", high = "red") + 
+  scale_alpha(range = c(0, 0.3), guide = FALSE) + 
+  ggtitle("Heat map of West Nile Virus positive traps") + 
+  xlab("Longitude") + ylab("Latitude") +
+  geom_point(data = traps, aes(x = Longitude, y = Latitude), shape = 4)
+```
+(the total positive count of a trap divided by the total number of times that trap was tested). 
+
+
+I next wanted to get a sense of how this pattern of West Nile Virus changed over time in relation to the geography, so I created an animated version of this map. I removed the background to get a clearer visual of positive vs negative cases. 
 
 ```{r}
 
 ```
 
+
+
+After seeing how highly varied the density of WnvPresent traps were in the heat map and animated plots, my next set of models will try to incorporate geographic information. 
+
+There are various ways to incorporate geography. The easiest way to do this is to incorporate the trap id in the model. A more elegant method would incorporate the longitude and latitude. The longitude/latitude method would require a decision tree or other model that allows for breaking up or clustering the locations in some way. 
+
+The will try to use the first method in a logistic regression model. 
 
 ## Data Preparation 2
 
