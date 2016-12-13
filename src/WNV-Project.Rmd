@@ -29,16 +29,17 @@ Kaggle supplies five data sets for the competition, three of which can be used i
 One of the largest factors in whether West Nile Virus is present or not is the number of mosquitos found in each trap. However, this variable is not present in the test set, and will need to be imputed from other variables before a final model can be fit to the presence of West Nile. 
 
 ```{r}
-library(tidyverse)
-load("./data/trainset1.RData")
+suppressMessages(library(tidyverse))
+load("./data/train.RData")
+load("./data/test.RData")
 
-ggplot(trainset1, aes(x=WnvPresent, y=NumMosquitos)) + geom_boxplot() + ggtitle("Number of mosquitos in West Nile Virus negative and positive traps") + xlab("West Nile Virus present in trap") + ylab("Number of mosquitos in trap")
+ggplot(train, aes(x=WnvPresent, y=NumMosquitos)) + geom_boxplot() + ggtitle("Number of mosquitos in West Nile Virus negative and positive traps") + xlab("West Nile Virus present in trap") + ylab("Number of mosquitos in trap")
 ```
 
 Based on this initial data exploration, I will first try and develop a model that predicts the number of mosquitos in each trap and then use that predicted value as a variable in a model that predicts whether West Nile is present or absent. For predicting the number of mosquitos, I will primarily be using weather variables and weekly historic averages. 
 
 ```{r}
-ggplot(trainset1, aes(x=Tavg, y=NumMosquitos)) + geom_jitter() + geom_smooth(method=lm) + ggtitle("Number of mosquitos vs average daily temperature") + xlab("Average daily temperature, degree F") + ylab("Number of mosquitos per trap")
+ggplot(train, aes(x=Tavg, y=NumMosquitos)) + geom_jitter() + geom_smooth(method=lm) + ggtitle("Number of mosquitos vs average daily temperature") + xlab("Average daily temperature, degree F") + ylab("Number of mosquitos per trap")
 
 ```
 
@@ -49,24 +50,66 @@ ggplot(trainset1, aes(x=Tavg, y=NumMosquitos)) + geom_jitter() + geom_smooth(met
 
 ## Modeling 1a: Linear regression to predict mosquito population
 
-For this first round of modeling, I will use linear regression to predict the number of mosquitos using weather data. I expect 
+For this first round of modeling, I will use linear regression to predict the number of mosquitos using weather data and historical averages per week. I expect that higher average temperatures and greater moisture should have a positive effect on the mosquito population.
 
-Then I will use logistic regression to estimate the probability of the presence of West Nile Virus.
+Then I will use logistic regression to estimate the probability of the presence of West Nile Virus. 
 
 ```{r}
+weathervariables <- c("Tmax", 
+                      "Tmin",
+                      "Tavg",
+                      "Depart",
+                      "DewPoint",
+                      "WetBulb",
+                      "Sunrise",
+                      "Sunset",
+                      "PrecipTotal",
+                      "ResultSpeed",
+                      "ma3",
+                      "ma5",
+                      "ma10",
+                      "precip3d",
+                      "precip5d",
+                      "precip10d")
 
+weathervariables <- paste(weathervariables, collapse = "+")
+fmla <- paste("NumMosquitos", weathervariables, sep = "~")
+
+lm1 <- lm(fmla, data = train)
+train$lmNumMosq <- predict(lm1, newdata = train)
+test$lmNumMosq <- predict(lm1, newdata = test)
+summary(lm1)
 ```
 
+## Plot residuals
+
+From now on, all graphs will show performance on test data. 
+
+```{r lm1 residual plot}
+ggplot(data = train, aes(x=lmNumMosq, y=(NumMosquitos - lmNumMosq))) + geom_point(alpha = 0.05)
+```
 
 ## Modeling 1b: Logistic regression to predict WNV infection
 
 ```{r}
-
+lgm1 <- glm(WnvPresent ~ NumMosquitos + precip10d + ma10 + Tmin + Summer + Year, data = train, family = binomial(link = "logit"))
+train$WnvPred <- predict(lgm1, newdata = train, type = "response")
+test$WnvPred <- predict(lgm1, newdata = test, type = "response")
+summary(lgm1)
 ```
 
 ## Evaluation 
 
+Now we can take a look at how well our model will perform based on where the cutoff for probability should be for predicting WnvPresent.
 ```{r}
+suppressMessages(library(ROCR))
+pred <- prediction(test$WnvPred, test$WnvPresent)
+perf <- performance(pred, "tpr", "fpr")
+
+plot(perf)
+
+suppressMessages(library(pROC))
+auc(test$WnvPresent, test$WnvPred)
 
 ```
 
@@ -83,7 +126,7 @@ The first model did not involve geographical information or any trap-specific in
 ```{r}
 library(ggmap)
 chicago <- get_map("Chicago")
-wnpositive <- filter(trainset1, WnvPresent == TRUE)
+wnpositive <- filter(train, WnvPresent == TRUE)
 load("./data/traps.RData")
 
 ggmap(chicago) + geom_density2d(data = wnpositive, aes(x = Longitude, y = Latitude), size = 0.3) + 
@@ -98,7 +141,11 @@ ggmap(chicago) + geom_density2d(data = wnpositive, aes(x = Longitude, y = Latitu
 (the total positive count of a trap divided by the total number of times that trap was tested). 
 
 
-I next wanted to get a sense of how this pattern of West Nile Virus changed over time in relation to the geography, so I created an animated version of this map. I removed the background to get a clearer visual of positive vs negative cases. 
+I next wanted to get a sense of how this pattern of West Nile Virus changed over time in relation to the geography, so I created an animated version of this map. I removed the background to get a clearer visual of positive vs negative cases. The code to animate takes several seconds and can be found in the src folder called "07_animated_map.R"
+
+![animated map](./images/mosq_map.gif)
+
+
 
 ```{r}
 
@@ -117,11 +164,36 @@ The will try to use the first method in a logistic regression model.
 Add clustering regions
 
 ```{r}
+trap_geo_hot <- train %>% group_by(Trap, Longitude, Latitude) %>% 
+  summarise(number = n(), WnvTot = sum(WnvPresent)) %>% 
+  mutate(WnvAvg = WnvTot/number) %>% 
+  select(trap_geo_hot, Trap, Latitude, Longitude, WnvAvg) %>% 
+  arrange(Trap)
+
+# Geographic + Hotspot clusters using k-means with k=6
+set.seed(123)
+geo.hot.cl <- kmeans(trap_geo_hot[,2:4], centers = 6)
+trap_geo_hot$geo.hot.cl <- as.factor(geo.hot.cl$cluster)
+
+# Add Geographic hotspot clusters to trainset
+train <- left_join(train, trap_geo_hot, by = c("Trap", "Longitude", "Latitude"))
+
+ggplot(trap_geo_hot, aes(Longitude, Latitude, color = geo.hot.cl)) + geom_point()
+
+ggmap(chicago) + geom_density2d(data = wnpositive, aes(x = Longitude, y = Latitude), size = 0.3) + 
+  stat_density2d(data = wnpositive, aes(x = Longitude, y = Latitude, fill = ..level.., alpha = ..level..), size = 0.01, 
+    bins = 16, geom = "polygon") + 
+  scale_fill_gradient(name="Number of WNV+", low = "green", high = "red") + 
+  scale_alpha(range = c(0, 0.3), guide = FALSE) + 
+  ggtitle("Heat map of West Nile Virus positive traps") + 
+  xlab("Longitude") + ylab("Latitude") +
+  geom_point(data = trap_geo_hot, aes(x = Longitude, y = Latitude, shape = geo.hot.cl)) + scale_shape_discrete(name = "Trap Cluster")
 
 ```
 
 
 ## Modeling 2a: 
+
 
 
 ## Modeling 3b: 

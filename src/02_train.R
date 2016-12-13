@@ -1,11 +1,11 @@
 # Train
+suppressMessages(library(plyr))
+suppressMessages(library(tidyverse))
+train <- read_csv("./data/train.csv")
 
-train <- read.csv("./data/train.csv")
-train <- tbl_df(train)
-str(train)
-train$Date <- as.Date(train$Date, "%Y-%m-%d")
+#train$Date <- as.Date(train$Date, "%Y-%m-%d")
 train$WnvPresent <- as.logical(train$WnvPresent)
-?as.Date
+
 train$Date2 <- as.POSIXlt(train$Date)
 train$Year <- train$Date2$year+1900
 train$Week <- floor((train$Date2$yday - train$Date2$wday + 7) /7)
@@ -13,11 +13,6 @@ train$Week <- floor((train$Date2$yday - train$Date2$wday + 7) /7)
 train$Summer <- abs(32-train$Week)
 
 train$Date2 <- NULL
-
-
-library(plyr)
-library(tidyverse)
-
 
 train <- train %>% mutate(c.pip = ifelse(Species == "CULEX PIPIENS", 1, 0), 
                           c.res = ifelse(Species == "CULEX RESTUANS", 1, 0),
@@ -27,26 +22,32 @@ train <- train %>% mutate(c.pip = ifelse(Species == "CULEX PIPIENS", 1, 0),
 
 train <- train %>% mutate(Species2 = Species) 
 
+
+
+weeklyAvgNumMosq <- train %>% group_by(Week) %>% summarise(WeekAvgMos = mean(NumMosquitos)) %>% ungroup()
+
+train <- left_join(train, weeklyAvgNumMosq, by = "Week")
+
+
+
 train$Species2 <- revalue(train$Species2, c("CULEX ERRATICUS" = "OTHER",
                          "CULEX SALINARIUS" = "OTHER",
                          "CULEX TERRITANS" = "OTHER"))
 
-trainshort <- select(train, 
+
+train <- select(train, 
                      -Address,
                      -Block,
                      -Street,
                      -AddressNumberAndStreet,
                      -AddressAccuracy)
                      
-                     
-
-
 
 save(train, file = "./data/train.RData")
-save(trainshort, file = "./data/trainshort.RData")
 
+## Extract trap locations
 
-## Trap locations
-
-traps <- train %>% group_by(Trap, Longitude, Latitude) %>% summarise(number =n()) %>% arrange(Trap)
+traps <- train %>% dplyr::group_by(Trap, Longitude, Latitude) %>% summarise(number =n()) %>% arrange(Trap)
 save(traps, file = "./data/traps.RData")
+
+rm(list = ls())

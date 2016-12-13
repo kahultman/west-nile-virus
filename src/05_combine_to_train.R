@@ -1,9 +1,9 @@
-# Combine weather data with training set
+# Combine weather data with training and test set
 
 load("./data/station1.RData")
 load("./data/trainshort.RData")
 load("./data/train.RData")
-library(dplyr)
+suppressMessages(library(tidyverse))
 
 station1select <- select(station1, 
                          Date,
@@ -24,14 +24,12 @@ station1select <- select(station1,
                          precip5d,
                          precip10d)
 
-trainset1 <- left_join(trainshort, station1select, by = "Date")
-save(trainset1, file = "./data/trainset1.RData")
+train <- left_join(train, station1select, by = "Date")
+save(train, file = "./data/train.RData")
 
 
-trainset2 <- left_join(train, station1select, by = "Date")
-save(trainset2, file = "./data/trainset2.RData")
-
-
-
+load("./data/test.RData")
+test <- left_join(test, station1select, by = "Date")
+save(test, file = "./data/test.RData")
 
 
