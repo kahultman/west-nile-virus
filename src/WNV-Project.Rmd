@@ -162,7 +162,7 @@ fitControl <- trainControl(method = "repeatedcv",
 
 set.seed(2014)
 
-glmBoostModel <- train(WnvPresent ~ ., data=train2, method = "glmboost", metric="ROC", trControl = fitControl, tuneLength=5, center=TRUE, family=Binomial(link = c("logit")))
+glmBoostModel <- train(WnvPresent ~ ., data=train, method = "glmboost", metric="ROC", trControl = fitControl, tuneLength=5, center=TRUE, family=Binomial(link = c("logit")))
 
 ```
 
