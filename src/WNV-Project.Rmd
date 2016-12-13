@@ -49,6 +49,8 @@ ggplot(train, aes(x=Tavg, y=NumMosquitos)) + geom_jitter() + geom_smooth(method=
 ```
 
 
+
+
 ## Data Preparation 
 
 
@@ -93,14 +95,36 @@ From now on, all graphs will show performance on test data.
 ggplot(data = train, aes(x=lmNumMosq, y=(NumMosquitos - lmNumMosq))) + geom_point(alpha = 0.05)
 ```
 
+
+Target variable distribution
+
+```{r}
+table(train$WnvPresent)
+
+qqnorm(train$NumMosquitos)
+hist(train$NumMosquitos)
+
+hist(log2(train$NumMosquitos))
+```
+
+Absolute number of mosquitos might not be an accurate variable. 
+
+```{r}
+train$NumMosQuartile <- with(train, cut(NumMosquitos, breaks=quantile(NumMosquitos, probs=seq(0,1, by=0.25), na.rm=TRUE), include.lowest=TRUE))
+
+```
+
+
 ## Modeling 1b: Logistic regression to predict WNV infection
 
 ```{r}
-lgm1 <- glm(WnvPresent ~ NumMosquitos + precip10d + ma10 + Tmin + Summer + Year, data = train, family = binomial(link = "logit"))
+lgm1 <- glm(WnvPresent ~ NumMosQuartile + precip10d + ma10 + Tmin + Summer + Year, data = train, family = binomial(link = "logit"))
 train$Wnv.glm.Pred <- predict(lgm1, newdata = train, type = "response")
 test$NumMosquitos <- test$lmNumMosq
 test$Wnv.glm.Pred <- predict(lgm1, newdata = test, type = "response")
 summary(lgm1)
+
+
 ```
 
 ## Evaluation 
@@ -233,8 +257,11 @@ ggmap(chicago) + geom_density2d(data = wnpositive, aes(x = Longitude, y = Latitu
 ```
 
 
-## Modeling 2a: 
+## Modeling 2a: Decision Tree
 
+```{r}
+
+```
 
 
 ## Modeling 3b: 
