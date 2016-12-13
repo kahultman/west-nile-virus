@@ -2,15 +2,20 @@
 title: "WNV Project"
 author: "Keith Hultman"
 date: "12/4/2016"
-output: html_document
-TOC: TRUE
+output:
+  pdf_document:
+    toc_depth: '2'
+  html_document:
+    TOC: yes
+    code_folding: hide
+    fig_caption: yes
+    toc_depth: 2
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_knit$set(root.dir = '../')
 ```
-
 
 # West Nile Virus Prediction
 
@@ -117,7 +122,49 @@ The AUC for the test set, after submitting the predicted probabilities to Kaggle
 
 # CRISP Iteration 2
 
+The logistic regression model might be improved with using a boosting algorithm
  
+```{r}
+suppressMessages(library(caret))
+
+set.seed(300)
+ctrl <- trainControl(method = "repeatedcv", 
+                     number = 10, 
+                     repeats = 3,
+                     classProbs = TRUE, 
+                     summaryFunction = twoClassSummary)
+
+glmboost <- train(WnvPresent ~ NumMosquitos + precip10d + ma10 + Tmin + Summer + Year,
+              data = train, 
+              method = "glmboost",
+              metric = "ROC",
+              trControl = ctrl,
+              tuneLength = 5,
+              center = TRUE,
+              family = Binomial(link = c("logit")))
+
+
+ctrl <- trainControl(method = "repeatedcv", number = 10, savePredictions = TRUE)
+
+lgm2 <- train(WnvPresent ~ NumMosquitos + precip10d + ma10 + Tmin + Summer + Year,  data=train, method="glm", family="binomial",
+                 trControl = ctrl, tuneLength = 5)
+
+train2 <- select(train, WnvPresent, NumMosquitos, precip10d, ma10, Tmin, Summer, Year)
+summary(train2)
+fitControl <- trainControl(method = "repeatedcv",
+                           number = 5,
+                           repeats = 10,
+                           ## Estimate class probabilities
+                           classProbs = TRUE,
+                           ## Evaluate performance using 
+                           ## the following function
+                           summaryFunction = twoClassSummary)
+
+set.seed(2014)
+
+glmBoostModel <- train(WnvPresent ~ ., data=train2, method = "glmboost", metric="ROC", trControl = fitControl, tuneLength=5, center=TRUE, family=Binomial(link = c("logit")))
+
+```
 
 ## Data Understanding 2
 
@@ -143,17 +190,9 @@ ggmap(chicago) + geom_density2d(data = wnpositive, aes(x = Longitude, y = Latitu
 (the total positive count of a trap divided by the total number of times that trap was tested). 
 
 
-I next wanted to get a sense of how this pattern of West Nile Virus changed over time in relation to the geography, so I created an animated version of this map. I removed the background to get a clearer visual of positive vs negative cases. The code to animate takes several seconds and can be found in the src folder called "07_animated_map.R"
+I next wanted to get a sense of how this pattern of West Nile Virus changed over time in relation to the geography, so I created an animated version of this map. I removed the background to get a clearer visual of positive vs negative cases. Animating the map requires too much time to rebuild in the document, but the code can be found in the src folder called "07_animated_map.R"
 
-![animated map](./images/mosq_map.gif)
-
-
-
-```{r}
-
-```
-
-
+![Animated map (not available in PDF document)](../images/mosq_map.gif)
 
 After seeing how highly varied the density of WnvPresent traps were in the heat map and animated plots, my next set of models will try to incorporate geographic information. 
 
@@ -169,7 +208,7 @@ Add clustering regions
 trap_geo_hot <- train %>% group_by(Trap, Longitude, Latitude) %>% 
   summarise(number = n(), WnvTot = sum(WnvPresent)) %>% 
   mutate(WnvAvg = WnvTot/number) %>% 
-  select(trap_geo_hot, Trap, Latitude, Longitude, WnvAvg) %>% 
+  select(Trap, Latitude, Longitude, WnvAvg) %>% 
   arrange(Trap)
 
 # Geographic + Hotspot clusters using k-means with k=6
