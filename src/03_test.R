@@ -36,3 +36,5 @@ test <- select(test,
 
 
 save(test, file = "./data/test.RData")
+
+rm(list = ls())

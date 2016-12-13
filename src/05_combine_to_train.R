@@ -1,7 +1,6 @@
 # Combine weather data with training and test set
 
 load("./data/station1.RData")
-load("./data/trainshort.RData")
 load("./data/train.RData")
 suppressMessages(library(tidyverse))
 
@@ -10,7 +9,6 @@ station1select <- select(station1,
                          Tmax,
                          Tmin,
                          Tavg,
-                         Depart,
                          DewPoint,
                          WetBulb,
                          Sunrise,
@@ -33,3 +31,4 @@ test <- left_join(test, station1select, by = "Date")
 save(test, file = "./data/test.RData")
 
 
+rm(list= ls()[!(ls() %in% c('test','train'))])

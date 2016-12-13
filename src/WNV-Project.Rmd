@@ -58,7 +58,6 @@ Then I will use logistic regression to estimate the probability of the presence 
 weathervariables <- c("Tmax", 
                       "Tmin",
                       "Tavg",
-                      "Depart",
                       "DewPoint",
                       "WetBulb",
                       "Sunrise",
@@ -93,8 +92,9 @@ ggplot(data = train, aes(x=lmNumMosq, y=(NumMosquitos - lmNumMosq))) + geom_poin
 
 ```{r}
 lgm1 <- glm(WnvPresent ~ NumMosquitos + precip10d + ma10 + Tmin + Summer + Year, data = train, family = binomial(link = "logit"))
-train$WnvPred <- predict(lgm1, newdata = train, type = "response")
-test$WnvPred <- predict(lgm1, newdata = test, type = "response")
+train$Wnv.glm.Pred <- predict(lgm1, newdata = train, type = "response")
+test$NumMosquitos <- test$lmNumMosq
+test$Wnv.glm.Pred <- predict(lgm1, newdata = test, type = "response")
 summary(lgm1)
 ```
 
@@ -103,15 +103,17 @@ summary(lgm1)
 Now we can take a look at how well our model will perform based on where the cutoff for probability should be for predicting WnvPresent.
 ```{r}
 suppressMessages(library(ROCR))
-pred <- prediction(test$WnvPred, test$WnvPresent)
+suppressMessages(library(pROC))
+
+pred <- prediction(train$Wnv.glm.Pred, train$WnvPresent)
 perf <- performance(pred, "tpr", "fpr")
 
 plot(perf)
 
-suppressMessages(library(pROC))
-auc(test$WnvPresent, test$WnvPred)
-
+auc(train$WnvPresent, train$Wnv.glm.Pred)
 ```
+
+The AUC for the test set, after submitting the predicted probabilities to Kaggle was 0.696. Since this is much lower than the 0.814 AUC from the training set, this model is likely overfit to the training set. 
 
 # CRISP Iteration 2
 
