@@ -1,38 +1,24 @@
 # Train
-suppressMessages(library(plyr))
+
 suppressMessages(library(tidyverse))
 train <- read_csv("./data/train.csv")
+
 
 #train$Date <- as.Date(train$Date, "%Y-%m-%d")
 train$WnvPresent <- as.logical(train$WnvPresent)
 
 train$Date2 <- as.POSIXlt(train$Date)
 train$Year <- train$Date2$year+1900
-train$Week <- floor((train$Date2$yday - train$Date2$wday + 7) /7)
+train$Week <- as.integer(floor((train$Date2$yday - train$Date2$wday + 7) /7))
 
 train$Summer <- abs(32-train$Week)
 
 train$Date2 <- NULL
 
-train <- train %>% mutate(c.pip = ifelse(Species == "CULEX PIPIENS", 1, 0), 
-                          c.res = ifelse(Species == "CULEX RESTUANS", 1, 0),
-                          c.pip.c.res = ifelse(Species == "CULEX PIPIENS/RESTUANS", 1, 0), 
-                          c.ter = ifelse(Species == "CULEX TERRITANS", 1, 0),
-                          c.oth = ifelse(!(Species %in% c("CULEX PIPIENS", "CULEX RESTUANS", "CULEX PIPIENS/RESTUANS", "CULEX TERRITANS")), 1,0))
 
-train <- train %>% mutate(Species2 = Species) 
-
-
-
-weeklyAvgNumMosq <- train %>% group_by(Week) %>% summarise(WeekAvgMos = mean(NumMosquitos)) %>% ungroup()
+weeklyAvgNumMosq <- train %>% group_by(Week) %>% summarise(WeekAvgMos = mean(NumMosquitos)) 
 
 train <- left_join(train, weeklyAvgNumMosq, by = "Week")
-
-
-
-train$Species2 <- revalue(train$Species2, c("CULEX ERRATICUS" = "OTHER",
-                         "CULEX SALINARIUS" = "OTHER",
-                         "CULEX TERRITANS" = "OTHER"))
 
 
 train <- select(train, 
@@ -47,7 +33,25 @@ save(train, file = "./data/train.RData")
 
 ## Extract trap locations
 
-traps <- train %>% dplyr::group_by(Trap, Longitude, Latitude) %>% summarise(number =n()) %>% arrange(Trap)
+traps <- train %>% group_by(Trap, Longitude, Latitude) %>% summarise(number =n()) %>% arrange(Trap)
 save(traps, file = "./data/traps.RData")
 
-rm(list = ls())
+# Species 
+# train <- train %>% mutate(c.pip = ifelse(Species == "CULEX PIPIENS", 1, 0), 
+#                           c.res = ifelse(Species == "CULEX RESTUANS", 1, 0),
+#                           c.pip.c.res = ifelse(Species == "CULEX PIPIENS/RESTUANS", 1, 0), 
+#                           c.ter = ifelse(Species == "CULEX TERRITANS", 1, 0),
+#                           c.oth = ifelse(!(Species %in% c("CULEX PIPIENS", "CULEX RESTUANS", "CULEX PIPIENS/RESTUANS", "CULEX TERRITANS")), 1,0))
+# 
+# train <- train %>% mutate(Species2 = Species) 
+
+
+
+
+
+# train$Species2 <- revalue(train$Species2, c("CULEX ERRATICUS" = "OTHER",
+#"CULEX SALINARIUS" = "OTHER",
+#"CULEX TERRITANS" = "OTHER"))
+
+
+#rm(list = ls())
