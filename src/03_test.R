@@ -16,7 +16,7 @@ test$Summer <- abs(32-test$Week)
 test$Date2 <- NULL
 
 
-train$Species <- fix_species(train$Species)
+test$Species <- fix_species(test$Species)
 
 
 test <- select(test, 
@@ -29,4 +29,3 @@ test <- select(test,
 
 save(test, file = "./data/test.RData")
 
-rm(list = ls())

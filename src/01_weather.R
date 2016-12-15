@@ -50,7 +50,6 @@ weather <- weather %>% replace_na(list(PrecipTotal = 0,
                                        StnPressure = mean(weather$StnPressure, na.rm = TRUE),
                                        SeaLevel = mean(weather$SeaLevel, na.rm = TRUE),
                                        AvgSpeed = mean(weather$AvgSpeed, na.rm = TRUE),
-                                       WetBulb = mean(weather$Wetbulb, na.rm = TRUE),
                                        Heat = mean(weather$Heat, na.rm = TRUE),
                                        Cool = mean(weather$Cool, na.rm = TRUE)))
 

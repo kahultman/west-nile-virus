@@ -31,4 +31,4 @@ test <- left_join(test, station1select, by = "Date")
 save(test, file = "./data/test.RData")
 
 
-rm(list= ls()[!(ls() %in% c('test','train'))])
+#rm(list= ls()[!(ls() %in% c('test','train'))])

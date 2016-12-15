@@ -20,13 +20,12 @@ train$Date2 <- NULL
 #                           c.ter = ifelse(Species == "CULEX TERRITANS", 1, 0),
 #                           c.oth = ifelse(!(Species %in% c("CULEX PIPIENS", "CULEX RESTUANS", "CULEX PIPIENS/RESTUANS", "CULEX TERRITANS")), 1,0))
 
+weeklyAvgNumMosq <- train %>% group_by(Week) %>% summarise(WeekAvgMos = mean(NumMosquitos)) %>% ungroup()
 
 add_week_avg_mosq <- function(df){
-  weeklyAvgNumMosq <- df %>% group_by(Week) %>% summarise(WeekAvgMos = mean(NumMosquitos)) %>% ungroup()
   df <- left_join(df, weeklyAvgNumMosq, by = "Week")
   df
 }
-
 
 fix_species <- function(x){
   x <- gsub("ERRATICUS", "OTHER", x) %>% 
