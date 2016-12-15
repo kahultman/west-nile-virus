@@ -3,18 +3,25 @@ title: "WNV Project"
 author: "Keith Hultman"
 date: "12/4/2016"
 output:
-  pdf_document:
-    toc_depth: '2'
   html_document:
     TOC: yes
     code_folding: hide
     fig_caption: yes
     toc_depth: 2
+  pdf_document:
+    toc_depth: '2'
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_knit$set(root.dir = '../')
+
+source("../src/functions.R")
+# source("../src/01_weather.R")
+# source("../src/02_train.R")
+# source("../src/03_test.R")
+# source("../src/05_combine_to_train.R")
+# source("../src/06_geo_cluster.R")
 ```
 
 # West Nile Virus Prediction
@@ -101,7 +108,11 @@ ggplot(data = train, aes(x=lmNumMosq, y=(NumMosquitos - lmNumMosq))) + geom_poin
 The residual plot appears to show bias in overestimating mosquitos at the low end and underestimating at the high end. However, the trend shows that this is indeed zero. Let's now include historical averages for each week in the year. We can also remove some variables that were not significantly informative. 
 
 ```{r mosquito linear regression 2}
+weeklyAvgNumMosq <- train %>% group_by(Week) %>% summarise(WeekAvgMos = mean(NumMosquitos)) %>% ungroup()
 
+
+train <- add_week_avg_mosq(train)
+test <- add_week_avg_mosq(test)
 
 lm_variables <- c("WeekAvgMos",
                       "Tavg",
@@ -120,7 +131,7 @@ train$lm2NumMosq <- predict(lm2, newdata = train)
 test$lm2NumMosq <- predict(lm2, newdata = test)
 plot(fitted(lm2), residuals(lm2))
 summary(lm2)
-ggplot(data = train, aes(x=lm2NumMosq, y=(NumMosquitos - lm2NumMosq))) + geom_point(alpha = 0.05) + xlab("Predicted number of Mosquitos in training set") + ylab("Residual error (Actual - Predicted)") + ggtitle("Residual plot for estimating Mosquito number using linear model on weather data") + stat_smooth(method=lm)
+ggplot(data = train, aes(x=lmNumMosq, y=(NumMosquitos - lmNumMosq))) + geom_point(alpha = 0.05) + xlab("Predicted number of Mosquitos in training set") + ylab("Residual error (Actual - Predicted)") + ggtitle("Residual plot for estimating Mosquito number using linear model on weather data") + stat_smooth(method=lm)
 
 ```
 
@@ -134,7 +145,6 @@ I next needed to examine the distribution of the Mosquito counts.
 ```{r Mosquito Distribution}
 
 par(mfcol = c(2,2))
-
 hist(train$NumMosquitos)
 qqnorm(train$NumMosquitos)
 hist(log2(train$NumMosquitos))
@@ -155,7 +165,7 @@ test$lmNumMosq[test$lmNumMosq <= 0] <- 1
 
 test$NumMosQuartile <- with(test, cut(lmNumMosq, breaks=quantile(train$NumMosquitos, probs=seq(0,1, by=0.25), na.rm=TRUE), include.lowest=TRUE))
 
-sum(is.na(test$NumMosQuartile))
+#sum(is.na(test$NumMosQuartile))
 ```
 
 ## Poisson Regression
@@ -164,16 +174,52 @@ The distribution of mosquitos looks closer to a capped Poisson distribution and 
 
 ```{r Poisson regression}
 glm1 <- glm(fmla, data = train, family = "poisson")
-train$glm1NumMosq <- predict(lm1, newdata = train)
-test$glm1NumMosq <- predict(lm1, newdata = test)
+train$glm1NumMosq <- predict(glm1, newdata = train)
+test$glm1NumMosq <- predict(glm1, newdata = test)
 
 summary(glm1)
 
-ggplot(data = train, aes(x=glm1NumMosq, y=(NumMosquitos - glm1NumMosq))) + geom_point(alpha = 0.05) + xlab("Predicted number of Mosquitos in training set") + ylab("Residual error (Actual - Predicted)") + ggtitle("Residual plot for estimating Mosquito number using Poisson regression model on weather data") + stat_smooth(method=lm)
+ggplot(data = train, aes(x=glm1NumMosq, y=(NumMosquitos - glm1NumMosq))) + geom_point(alpha = 0.05) + xlab("Predicted number of Mosquitos in training set") + ylab("Residual error (Actual - Predicted)") + ggtitle("Residual plot for estimating Mosquito number using Poisson regression model on weather data") + stat_smooth(method = lm)
 
 ```
 
-Honestly, I'm not sure this is much better, but I'll stick with Poisson given the distribution. 
+This is much worse, as it only predicts up to 3 mosquitos per trap and appears to undercount mosquitos quite a bit. 
+
+## Data understanding: Number of mosquitos
+
+One important feature of how this data is collected and organized, is that the number of mosquitos in each trap is actually spread out over multiple rows. Therefore, we should collapse and combine multiple rows to find the number of mosquitos present in the environment. We also gain information from the separate rows mostly for the species information - some species are found in rows that are positive and not in rows that are negative from the same trap and this is useful information. 
+
+```{r Real counts of Mosquitos and Poisson}
+Mosq_number <- train %>% group_by(Trap, Date) %>% summarise(Mosq_count = sum(NumMosquitos), nrows = n())
+train <- left_join(train, Mosq_number, by = c("Trap", "Date"))
+
+
+fmla <- paste("Mosq_count", lm_variables, sep = "~")
+
+glm1 <- glm(fmla, data = train, family = "poisson")
+train$glm1NumMosq <- predict(glm1, newdata = train)
+test$glm1NumMosq <- predict(glm1, newdata = test)
+
+summary(glm1)
+
+ggplot(data = train, aes(x=glm1NumMosq, y=(NumMosquitos - glm1NumMosq))) + geom_point(alpha = 0.05) + xlab("Predicted number of Mosquitos in training set") + ylab("Residual error (Actual - Predicted)") + ggtitle("Residual plot for estimating Mosquito number using Poisson regression model on weather data") + stat_smooth()
+
+```
+
+The number of rows in the training set for each trap-date combination is highly correlated with total mosquitos in the trap. This feature, the number of rows for trap-date, is present in the test set as well. 
+
+```{r}
+ggplot(data = train, aes(nrows, Mosq_count)) + geom_point() + ggtitle("Number of rows for each Trap reveals an estimate for total number of mosquitos")
+```
+
+This feature was used by winning competitors to estimate the number of mosquitos. However, I feel this is a bit of cheating for business question which involves predicting the probability of WNV for an entire year. In actual practice, we would not know how many 'trap'-ful amounts of mosquitos will be tested. 
+
+```{r}
+
+
+```
+
+
 
 ## WNV Distribution
 
@@ -208,21 +254,45 @@ Now we can take a look at how well our model will perform based on where the cut
 suppressMessages(library(ROCR))
 suppressMessages(library(pROC))
 
-pred <- prediction(train$Wnv.glm.Pred, train$WnvPresent)
-perf <- performance(pred, "tpr", "fpr")
+model.evaluate <- function(actual, predicted){
+  pred <- prediction(predicted, actual)
+  perf <- performance(pred, "tpr", "fpr")
+  plot(perf)
+  auc(actual, predicted)
+}
 
-plot(perf)
-
-auc(train$WnvPresent, train$Wnv.glm.Pred)
+model.evaluate(train$WnvPresent, train$Wnv.glm.Pred)
 ```
 
 The AUC for the test set, after submitting the predicted probabilities to Kaggle was 0.700. Since this is a bit lower than the 0.814 AUC from the training set, this model is likely overfit to the training set. 
+
+## Using number of rows as an estimate of mosquito number
+
+```{r nrows Log Reg}
+lgm2 <- glm(WnvPresent ~ nrows + ma10 + WetBulb + Tmin + Summer + Year, data = train, family = binomial(link = "logit"))
+train$Wnv.glm2.Pred <- predict(lgm2, newdata = train, type = "response")
+
+
+model.evaluate(train$WnvPresent, train$Wnv.glm2.Pred)
+
+
+Mosq_number <- test %>% group_by(Trap, Date) %>% summarise(nrows = n())
+test <- left_join(test, Mosq_number, by = c("Trap", "Date"))
+
+test$Wnv.glm2.Pred <- predict(lgm2, newdata = test, type = "response")
+summary(lgm2)
+
+glm.submission2 <- select(test, Id, WnvPresent = Wnv.glm2.Pred)
+write_csv(glm.submission2, path = "./data/glm.submission2.csv")
+```
+
+This gives an AUC of 0.711 on Kaggle.
 
 # CRISP Iteration 2
 
 The logistic regression model might be improved with using a boosting algorithm
  
-```{r}
+```{r, eval=FALSE, include=FALSE}
 suppressMessages(library(caret))
 
 set.seed(300)
@@ -313,9 +383,18 @@ trap_geo_hot <- train %>% group_by(Trap, Longitude, Latitude) %>%
 set.seed(123)
 geo.hot.cl <- kmeans(trap_geo_hot[,2:4], centers = 6)
 trap_geo_hot$geo.hot.cl <- as.factor(geo.hot.cl$cluster)
+#trap_geo_hot$geo.hot.cl <- as.factor(trap_geo_hot$geo.hot.cl)
+#ggplot(trap_geo_hot, aes(Longitude, Latitude, color = geo.hot.cl)) + geom_point()
 
 # Add Geographic hotspot clusters to trainset
+
 train <- left_join(train, trap_geo_hot, by = c("Trap", "Longitude", "Latitude"))
+
+save(train, file = "./data/train.RData")
+
+test <- left_join(test, trap_geo_hot, by = c("Trap", "Longitude", "Latitude"))
+
+save(test, file = "./data/test.RData")
 
 ggplot(trap_geo_hot, aes(Longitude, Latitude, color = geo.hot.cl)) + geom_point()
 
@@ -335,7 +414,7 @@ ggmap(chicago) + geom_density2d(data = wnpositive, aes(x = Longitude, y = Latitu
 
 C5.0 Decision trees
 
-```{r}
+```{r, eval=FALSE, include=FALSE}
 suppressMessages(library(C50))
 
 train <- add_week_avg_mosq(train)
@@ -397,9 +476,18 @@ I would like to incorporate the above distribution, which looks approxiamately n
 ## Modeling 4: Random Forest
 
 ```{r}
+suppressMessages(library(randomForest))
+
 
 ```
 
 
 # Deployment
+
+
+
+
+```{r}
+sessionInfo()
+```
 

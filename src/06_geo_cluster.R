@@ -24,3 +24,5 @@ train <- left_join(train, trap_geo_hot, by = c("Trap", "Longitude", "Latitude"))
 save(train, file = "./data/train.RData")
 
 test <- left_join(test, trap_geo_hot, by = c("Trap", "Longitude", "Latitude"))
+
+save(test, file = "./data/test.RData")

@@ -11,3 +11,6 @@ sum(is.na(glm.submission$WnvPresent))
 
 write_csv(glm.submission, path = "./data/glm.submission.csv")
 
+ggplot(data = train, aes(sample = NumMosquitos)) + 
+  stat_qq(distribution = stats::qpois, dparams = list(lambda = mean(train$NumMosquitos))) 
+
