@@ -85,6 +85,8 @@ lm1 <- lm(fmla, data = train)
 train$lmNumMosq <- predict(lm1, newdata = train)
 test$lmNumMosq <- predict(lm1, newdata = test)
 summary(lm1)
+
+test$NumMoslmPred <- predict(lm1, newdata = test)
 ```
 
 ## Plot residuals
@@ -111,6 +113,9 @@ Absolute number of mosquitos might not be an accurate variable.
 
 ```{r}
 train$NumMosQuartile <- with(train, cut(NumMosquitos, breaks=quantile(NumMosquitos, probs=seq(0,1, by=0.25), na.rm=TRUE), include.lowest=TRUE))
+
+test$NumMosQuartile <- with(test, cut(NumMoslmPred, breaks=quantile(train$NumMosquitos, probs=seq(0,1, by=0.25), na.rm=TRUE), include.lowest=TRUE))
+
 
 ```
 
@@ -192,12 +197,12 @@ glmBoostModel <- train(WnvPresent ~ ., data=train2, method = "glmboost", metric=
 
 ## Data Understanding 2
 
-The first model did not involve geographical information or any trap-specific information. Let's examine the relationship between geography and West Nile presence. First let's look at a map of Wnv as a density plot. Here, the density is based off of the overall positive count for each trap. 
+The first model did not involve geographical information or any trap-specific information. Next, I wanted to visually examine the relationship between geography and West Nile presence. First I created a map of Wnv incidents as a density plot. Here, the density is based off of the overall positive count for each trap. 
 
  
 
 ```{r}
-library(ggmap)
+suppressMessages(library(ggmap))
 chicago <- get_map("Chicago")
 wnpositive <- filter(train, WnvPresent == TRUE)
 load("./data/traps.RData")
@@ -211,22 +216,22 @@ ggmap(chicago) + geom_density2d(data = wnpositive, aes(x = Longitude, y = Latitu
   xlab("Longitude") + ylab("Latitude") +
   geom_point(data = traps, aes(x = Longitude, y = Latitude), shape = 4)
 ```
-(the total positive count of a trap divided by the total number of times that trap was tested). 
 
+It's clear from the density map that there are hotspot traps where West Nile is more common than others, and this appears to influence nearby traps.  
 
-I next wanted to get a sense of how this pattern of West Nile Virus changed over time in relation to the geography, so I created an animated version of this map. I removed the background to get a clearer visual of positive vs negative cases. Animating the map requires too much time to rebuild in the document, but the code can be found in the src folder called "07_animated_map.R"
+Now that we have a good 2-dimensional view of the occurance of WNV, I next wanted to get a sense of how this pattern of West Nile Virus changed over time in relation to the geography. I did this by creating an animated version of this map using a new R package called gganimate. I chose to remove the background map of chicago to get a clearer visual of positive vs negative cases. Animating the map requires too much time to rebuild in the document, but the code can be found in the src folder called "07_animated_map.R"
 
 ![Animated map (not available in PDF document)](../images/mosq_map.gif)
 
-After seeing how highly varied the density of WnvPresent traps were in the heat map and animated plots, my next set of models will try to incorporate geographic information. 
+After seeing how highly varied the density of WnvPresent traps were in the heat map and animated plots, my next set of models will try to incorporate this regional geographic information. 
 
-There are various ways to incorporate geography. The easiest way to do this is to incorporate the trap id in the model. A more elegant method would incorporate the longitude and latitude. The longitude/latitude method would require a decision tree or other model that allows for breaking up or clustering the locations in some way. 
+There are various ways to incorporate geography. I could incorporate the trap id in the model or I could incorporate the longitude and latitude for very high precision. The longitude/latitude method would require a decision tree or other model that allows for breaking up or clustering the locations in some non-linear way. 
 
-The will try to use the first method in a logistic regression model. 
+Instead, I am choosing to group the traps into clusters and include the cluster as a modeling parameter. The reasoning for this is that suspect that the true risk based on geography has a much lower actual precision than our ability to define latitude or longitude. 
 
 ## Data Preparation 2
 
-Add clustering regions
+To create clusters of traps I want to incorporate not only geographical information, but WNV rate as well. This will help to create breaks in my clusters that are informative for predicting future WNV rate. 
 
 ```{r}
 trap_geo_hot <- train %>% group_by(Trap, Longitude, Latitude) %>% 
@@ -259,7 +264,31 @@ ggmap(chicago) + geom_density2d(data = wnpositive, aes(x = Longitude, y = Latitu
 
 ## Modeling 2a: Decision Tree
 
+C5.0 Decision trees
+
 ```{r}
+suppressMessages(library(C50))
+
+weeklyAvgNumMosq <- test %>% group_by(Week) %>% summarise(WeekAvgMos = mean(NumMoslmPred)) %>% ungroup()
+test <- left_join(test, weeklyAvgNumMosq, by = "Week")
+
+
+trainC50df <- train %>% select(WnvPresent, Species, NumMosQuartile, Year, Week, WeekAvgMos, Tmin, WetBulb, PrecipTotal, ResultSpeed, ma10, precip3d, precip5d, precip10d)
+trainC50df$WnvPresent <- as.factor(trainC50df$WnvPresent)
+save(trainC50df, file = "./data/trainC50df.RData")
+
+c50m <- C5.0(WnvPresent ~., data = trainC50df, trials = 1, costs = NULL)
+trainpredict <- predict(c50m, newdata = train, type = "prob")
+
+
+roc1 <- roc(train$WnvPresent, trainpredict[,2])
+auc(roc1)
+
+
+summary(c50m)
+
+?predict
+testpred_df$C50.Wnv.pred <- predict(c50m, newdata = test, type = "prob")
 
 ```
 

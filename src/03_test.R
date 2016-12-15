@@ -27,6 +27,8 @@ test$Species2 <- revalue(test$Species2, c("CULEX ERRATICUS" = "OTHER",
                                             "CULEX SALINARIUS" = "OTHER",
                                             "CULEX TERRITANS" = "OTHER"))
 
+test$Species[test$Species == "UNSPECIFIED CULEX"] <- "CULEX RESTUANS"
+
 test <- select(test, 
                 -Address,
                 -Block,
