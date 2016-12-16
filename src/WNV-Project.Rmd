@@ -19,7 +19,7 @@ knitr::opts_knit$set(root.dir = '../')
 
 This project will attempt to predict the likelihood of a positive test for West Nile Virus (WNV) in mosquitos captured using traps around Chicago, IL. The data sets originate from the Kaggle competition, [West Nile Virus Prediction](https://www.kaggle.com/c/predict-west-nile-virus). 
 
-The analysis will follow an iterative approach to finding a production model for West Nile forecasting. There are several data science iterative methods, and I will use the [CRISP](./images/CRISP.png) model for organizing this project. 
+The analysis will follow an iterative approach to finding a production model for West Nile forecasting. There are several data science iterative methods, and I will use the [CRISP](./images/CRISP.png) model for organizing this project. Additionally, this analysis conforms to reproducible research standards and can be reconstructed from source files available at my [GitHub](https://github.com/kahultman/west-nile-virus) repository.
 
 # CRISP Iteration 1
 
@@ -27,13 +27,13 @@ The analysis will follow an iterative approach to finding a production model for
 
 The goal for this project is to develop a predictive model that will forecast the probability of WNV presense in 138 mosquito traps around Chicago over the course of a season. WNV is a communicable disease that is spread through its most common vector, mosquitos. Most people infected with WNV develop no symtoms, but 1% will develop neurological symptoms including headache, high fever, neck stiffness, disorientation, coma, tremors, seizures, or paralysis, according to the [CDC](https://www.cdc.gov/westnile/index.html). There are no medical treatments or cures for WNV, so preventative measures are required to reduce infection to the human population. Local community methods of mosquito control include reduction of larval habitats and applying insecticides targetting larvae or adult mosquitoes.  
 
-To aid in the correct application of insecticides, being able to predict the most likely sites of WNV outbreak is highly valuable to reduce the financial and human cost of over-application of insecticides. This project will focus on developing a predictive model based on geographic information, weather conditions, presense of mosquito species, and historical trends of mosquito populations and WNV presense in the Chicago area.   
+Being able to predict the most likely sites of WNV outbreak is highly valuable to reduce the financial and human cost of over-application of insecticides. This project will focus on developing a predictive model based on geographic information, weather conditions, presense of mosquito species, and historical trends of mosquito populations and WNV presense in the Chicago area.   
 
 ## Data Understanding 
 
-Kaggle supplies five data sets for the competition, three of which can be used in model training. The train.csv file includes several variables associated with each West Nile Virus test including the trap id, geo-coordinates, date, species of mosquito present, number of mosquitos present, and a binary variable indicating the presence or absence of West Nile Virus (WnvPresent), our target variable. The test.csv contains all of the same features as the train.csv file except the number of mosquitos present and the target WnvPresent variable. These data sets were obtained from West Nile Virus testing period between 2007 and 2014 with the training set containing the odd years and the test set containing the even years. The weather.csv file contains historic weather data collected at the O'Hare and Midway airports concurrent with the mosquito testing time period. The spray.csv file includes the date and location of chemical spraying conducted by the city during 2011 and 2013. Since this spray data set would only have a large impact during one of the training years, I did not include the spray data in any of my models. For the weather data, since the differences in variables between O'Hare and Midway were so small, I chose to simply use the O'Hare data for all traps, rather than compute the closest station for each trap. 
+Kaggle supplies five data sets for the competition, three of which can be used in model training. The train.csv file includes several variables associated with each West Nile Virus test including the trap id, geo-coordinates, date, species of mosquito present, number of mosquitos present, and a binary variable indicating the presence or absence of West Nile Virus (WnvPresent), our target variable. The test.csv contains all of the same features as the train.csv file except the number of mosquitos present and the target WnvPresent variable. These data sets were obtained from West Nile Virus testing period between 2007 and 2014 with the training set containing the odd years and the test set containing the even years. The weather.csv file contains historic weather data collected at the O'Hare and Midway airports concurrent with the mosquito testing time period. The spray.csv file includes the date and location of chemical spraying conducted by the city during 2011 and 2013. Since this spray data set would only have a large impact during one of the training years, I did not include the spray data in any of my models. For the weather data, since the differences in variables between O'Hare and Midway were generally small, I chose to  use only the O'Hare data for all traps, rather than compute the closest station for each trap. 
 
-One of the largest factors for viral load within a population is the size of the population. A larger population means there are more mosquitos who can become infected and it also increases the number of interactions between hosts, allowing faster spread of virus from individual to individual. The size of the population can be estimated from the number of mosquitos found in each trap. However, *this variable is not present in the test set*, and will need to be imputed from other variables before a final model can be fit to the presence of West Nile using population as an input. 
+One of the largest factors influencing viral load within a population is the size of the population. A larger population means there are more mosquitos who can become infected and it also increases the number of interactions between hosts, allowing faster spread of virus from individual to individual. The size of the population can be estimated from the number of mosquitos found in each trap. However, *this variable is not present in the test set*, and will need to be imputed from other variables before a final model can be fit to the presence of West Nile using population as an input. 
 
 ```{r load | plot number and wnv present}
 library(plyr)
@@ -49,7 +49,7 @@ ggplot(train, aes(x=WnvPresent, y=NumMosquitos)) +
 
 train %>% group_by(Trap, Week) %>% 
   summarise(WNVrate = sum(WnvPresent)/n(), NumMosPer = sum(NumMosquitos)/n()) %>% 
-  ggplot(aes(NumMosPer, WNVrate)) + geom_point() + stat_smooth() +
+  ggplot(aes(log2(NumMosPer), WNVrate)) + geom_point() + stat_smooth() +
   ggtitle("Scatterplot of mosquito count in traps to WNV rate") +
   xlab("Number of mosquitos in traps per week") + ylab("WNV positive rate")
 ```
@@ -233,7 +233,7 @@ model.evaluate(train$WnvPresent, train$Wnv.glm.Pred)
 
 The AUC for the test set, after submitting the predicted probabilities to Kaggle was 0.700. Since this is a bit lower than the 0.814 AUC from the training set, this model is likely overfit to the training set. 
 
-## Data understanding: Number of mosquitos, again
+## Data understanding: Number of mosquitos, revisited
 
 One important feature of how this data is collected and organized, is that the number of mosquitos in each trap is actually spread out over multiple rows. Therefore, we should collapse and combine multiple rows to find the number of mosquitos present in the environment. We also gain information from the separate rows mostly for the species information - some species are found in rows that are positive and not in rows that are negative from the same trap and this is useful information. 
 
@@ -250,7 +250,7 @@ summary(glm1)
 ggplot(data = train, aes(x=glm1NumMosq, y=(NumMosquitos - glm1NumMosq))) + 
   geom_point(alpha = 0.05) + stat_smooth() + 
   ggtitle("Residual plot for estimating Mosquito number using Poisson regression model on weather data") + 
-  xlab("Predicted number of Mosquitos in training set") + ylab("Residual error (Actual - Predicted)") +  
+  xlab("Predicted number of Mosquitos in training set") + ylab("Residual error (Actual - Predicted)")
 ```
 
 The number of rows in the training set for each trap-date combination is correlated with total mosquitos in the trap. This feature, the number of rows for trap-date, is present in the test set as well. 
@@ -286,7 +286,7 @@ This gives an AUC of 0.711 on Kaggle.
 
 The logistic regression model might be improved with using a boosting algorithm
  
-```{r, eval=FALSE, include=FALSE}
+```{r glmboost, cache=TRUE}
 suppressMessages(library(caret))
 
 ctrl <- trainControl(method = "repeatedcv", 
@@ -335,7 +335,7 @@ test$glmboos.Pred2 <- test$glmboost.Pred[,2]
 
 Glmboost delivers 0.720 AUC on Kaggle. 
 
-## Business/Data Understanding: Effect of geography and location
+## Business/data understanding: Effect of geography and location
 
 The first set of models did not involve geographical information or any trap-specific information. There is likely to be an effect based on a trap's geographic location. Next, I wanted to visually examine the relationship between geography and West Nile presence. First I created a map of Wnv incidents as a density plot. Here, the density is based off of the overall positive count for each trap. 
 
@@ -366,7 +366,7 @@ There are various ways to incorporate geography. I could incorporate the trap id
 
 Instead, I am choosing to group the traps into clusters and include the cluster as a modeling parameter. The reasoning for this is that suspect that the true risk based on geography has a much lower actual precision than our ability to define latitude or longitude. 
 
-## Data Preparation: Clustering traps according to location and WNV presense
+## Data preparation: Clustering traps according to location and WNV presense
 
 To create clusters of traps I want to incorporate not only geographical information, but WNV rate as well. This will help to create breaks in my clusters that are informative for predicting future WNV rate. 
 
@@ -412,7 +412,7 @@ ggmap(chicago) + geom_density2d(data = wnpositive, aes(x = Longitude, y = Latitu
   geom_point(data = trap_geo_hot, aes(x = Longitude, y = Latitude, shape = geo.hot.cl)) + scale_shape_discrete(name = "Trap Cluster")
 ```
 
-## Modeling: Decision Tree
+## Modeling: decision tree
 
 Another type of modeling that will help in WNV classification is decision trees. Adding this type of model will help to connect non-linear relationships among the predictors. 
 
@@ -439,7 +439,7 @@ test$C50.Wnv.pred <- predict(c50m, newdata = test, type = "prob")
 
 Every prediction is the same for this classifier...
 
-## Data Understanding 3
+## Data understanding: WNV presense
 
 I next wanted to examine more closely the distribution of WNV presence throughout the season. For each Year-Week-Trap combination, compute the ratio of WNV presense to total tests. Then graph the distribution with Weeks as the dependent variable.
 
@@ -467,7 +467,7 @@ W_count_loess$fitted
 
 I would like to incorporate the above distribution, which looks approxiamately normal throughout the season. 
 
-## Evaluation 
+## Evaluation: 
 
 
 ## Modeling 4: Random Forest
@@ -475,6 +475,7 @@ I would like to incorporate the above distribution, which looks approxiamately n
 ```{r}
 suppressMessages(library(randomForest))
 train$WnvPresent <- as.factor(train$WnvPresent)
+train$geo.hot.cl <- as.factor(train$geo.hot.cl)
 rf <- randomForest(WnvPresent ~ nrows+geo.hot.cl+Tavg+Tmin+WetBulb+ResultSpeed+ma5+ma10+precip5d,
                    data = train, ntree = 500, mtry = 3)
 rf
@@ -483,7 +484,7 @@ rf
 ```
 
 
-# Deployment
+# Final ensembling and deployment
 
 
 
