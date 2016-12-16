@@ -29,5 +29,6 @@ save(train, file = "./data/train2.RData")
 load("./data/test.RData")
 test <- left_join(test, station1select, by = "Date")
 save(test, file = "./data/test.RData")
+save(test, file = "./data/test2.RData")
 
-#rm(list= ls()[!(ls() %in% c('test','train'))])
+rm(list= ls()[!(ls() %in% c('test','train'))])

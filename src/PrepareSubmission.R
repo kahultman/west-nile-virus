@@ -11,7 +11,7 @@ sum(is.na(glm.submission$WnvPresent))
 write_csv(glm.submission, path = "./data/glm.submission.csv")
 
 
-glmboos.submission <- select(test, Id, WnvPresent = glmboost.Pred2)
+glmboos.submission <- select(test, Id, WnvPresent = glmboos.Pred2)
 sum(is.na(glmboos.submission$WnvPresent))
 write_csv(glmboos.submission, path = "./data/glmboos.submission.csv")
 
