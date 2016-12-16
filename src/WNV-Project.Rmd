@@ -412,7 +412,6 @@ ggmap(chicago) + geom_density2d(data = wnpositive, aes(x = Longitude, y = Latitu
   geom_point(data = trap_geo_hot, aes(x = Longitude, y = Latitude, shape = geo.hot.cl)) + scale_shape_discrete(name = "Trap Cluster")
 ```
 
-
 ## Modeling: Decision Tree
 
 Another type of modeling that will help in WNV classification is decision trees. Adding this type of model will help to connect non-linear relationships among the predictors. 
@@ -420,14 +419,10 @@ Another type of modeling that will help in WNV classification is decision trees.
 ```{r, eval=FALSE, include=FALSE}
 suppressMessages(library(C50))
 
-# train <- add_week_avg_mosq(train)
-# test <- add_week_avg_mosq(test)
-
-trainC50df <- train %>% select(WnvPresent, Species, nrows, Summer, WeekAvgMos, Tmin, WetBulb, ResultSpeed, ma10, precip3d, precip5d, precip10d)
+trainC50df <- train %>% select(WnvPresent, geo.hot.cl, Species, nrows, Summer, WeekAvgMos, Tmin, WetBulb, ResultSpeed, ma10, precip3d, precip5d, precip10d)
 
 trainC50df$WnvPresent <- as.factor(trainC50df$WnvPresent)
 save(trainC50df, file = "./data/trainC50df.RData")
-
 
 c50m <- C5.0(WnvPresent ~., data = trainC50df, trials = 1)
 trainpredict <- predict(c50m, newdata = train, type = "prob")
@@ -435,7 +430,6 @@ trainpredict <- predict(c50m, newdata = train, type = "prob")
 
 roc1 <- roc(train$WnvPresent, trainpredict[,2])
 auc(roc1)
-
 
 summary(c50m)
 
@@ -469,11 +463,11 @@ plot(W_count_loess$residuals)
 W_count_loess$fitted
 ```
 
-## Modeling 3b: 
+## Modeling:
 
 I would like to incorporate the above distribution, which looks approxiamately normal throughout the season. 
 
-## Evaluation 1
+## Evaluation 
 
 
 ## Modeling 4: Random Forest
