@@ -5,7 +5,15 @@ train <- read_csv("./data/train.csv")
 test <- read_csv("./data/test.csv")
 source("./src/functions.R")
 
+# Set target variable as logical
 train$WnvPresent <- as.logical(train$WnvPresent)
+
+# Create version of target as factor
+train$WnvPresent2 <- as.character(train$WnvPresent)
+train$WnvPresent2[train$WnvPresent2== "TRUE"] <- "WNV.Pos"
+train$WnvPresent2[train$WnvPresent2== "FALSE"] <- "WNV.Neg"
+train$WnvPresent2 <- as.factor(train$WnvPresent2)
+
 
 # Cut non-used variables
 
@@ -82,14 +90,13 @@ test <- test %>% group_by(Trap, Year) %>%
          nrow.10d = fnrollsum(nrows, 10))
 
 # Back fill the rolling averages with missing data
+train$nrow.3d[is.na(train$nrow.3d)] <- train$nrows[is.na(train$nrow.3d)] 
+train$nrow.5d[is.na(train$nrow.5d)] <- train$nrow.3d[is.na(train$nrow.5d)]
+train$nrow.10d[is.na(train$nrow.10d)] <- train$nrow.5d[is.na(train$nrow.10d)]
 
-train$nrow.10d[is.na(train$nrow.10d)] <- train$nrow.5d
-train$nrow.5d[is.na(train$nrow.5d)] <- train$nrow.3d
-train$nrow.3d[is.na(train$nrow.3d)] <- train$nrow
-
-test$nrow.10d[is.na(test$nrow.10d)] <- test$nrow.5d
-test$nrow.5d[is.na(test$nrow.5d)] <- test$nrow.3d
-test$nrow.3d[is.na(test$nrow.3d)] <- test$nrow
+test$nrow.3d[is.na(test$nrow.3d)] <- test$nrows[is.na(test$nrow.3d)]
+test$nrow.5d[is.na(test$nrow.5d)] <- test$nrow.3d[is.na(test$nrow.5d)]
+test$nrow.10d[is.na(test$nrow.10d)] <- test$nrow.5d[is.na(test$nrow.10d)]
 
 
 save(train, file = "./data/train.RData")

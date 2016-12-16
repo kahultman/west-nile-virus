@@ -4,50 +4,39 @@ suppressMessages(library(tidyverse))
 load("./data/train.RData")
 load("./data/test.RData")
 
+WnvPresentOverall <- table(train$WnvPresent)[2] / sum(table(train$WnvPresent))
+
 trap_geo_hot <- train %>% group_by(Trap, Longitude, Latitude) %>% 
   summarise(number = n(), WnvTot = sum(WnvPresent)) %>% 
   mutate(WnvAvg = WnvTot/number) %>% 
   select(Trap, Latitude, Longitude, WnvAvg) %>% 
   arrange(Trap)
 
+test_geo <- test %>% group_by(Trap, Longitude, Latitude) %>% 
+  summarise(number = n()) %>%
+  select(Trap, Latitude, Longitude) %>% 
+  arrange(Trap)
+
+trap_geo_hot <- full_join(trap_geo_hot, test_geo)
+trap_geo_hot$WnvAvg[trap_geo_hot$WnvAvg == 0] <- WnvPresentOverall
+trap_geo_hot$WnvAvg[is.na(trap_geo_hot$WnvAvg)] <- WnvPresentOverall
+
 # Geographic + Hotspot clusters using k-means with k=6
 set.seed(123)
 geo.hot.cl <- kmeans(trap_geo_hot[,2:4], centers = 6)
 trap_geo_hot$geo.hot.cl <- as.factor(geo.hot.cl$cluster)
+
 #trap_geo_hot$geo.hot.cl <- as.factor(trap_geo_hot$geo.hot.cl)
 #ggplot(trap_geo_hot, aes(Longitude, Latitude, color = geo.hot.cl)) + geom_point()
 
 # Add Geographic hotspot clusters to trainset
 
-train <- left_join(train, trap_geo_hot, by = c("Trap", "Longitude", "Latitude"))
+train_geo <- left_join(train, trap_geo_hot, by = c("Trap", "Longitude", "Latitude"))
 
-save(train, file = "./data/train.RData")
-
-test <- left_join(test, trap_geo_hot, by = c("Trap", "Longitude", "Latitude"))
-
-save(test, file = "./data/test.RData")
+test_geo <- left_join(test, trap_geo_hot, by = c("Trap", "Longitude", "Latitude"))
 
 
 
-# Distance clusters
-
-traps
-
-traps_geo <- as.matrix(traps[,2:3])
-rownames(traps_geo) <- unlist(traps[,1])
-
-
-
-traps.dist <- dist(traps_geo)
-traps.dist
-traps.hclust <- hclust(traps.dist)
-plot(traps.hclust)
-?dist
-
-
-library(sp)
-library(rgeos)
-
-sp.traps <- traps %>% ungroup()
-sp.traps <- sp.traps[unique(sp.traps$Trap)]
-coordinates(sp.traps) <- ~Longitude+Latitude
+save(train_geo, file = "./data/train_geo.RData")
+save(test_geo, file = "./data/test_geo.RData")
+save(trap_geo_hot, file = "./data/trap_geo_hot.RData")

@@ -173,7 +173,6 @@ par(mfcol = c(1,1))
 
 The total number is capped at 50 mosquitos, and the distribution is centered close to zero with no negative values. Most observations have only 1 mosquito. I attempted to use log2 transformation on mosquito number but that did not improve the regression. 
 
-
 ## Modeling: Poisson Regression
 
 The distribution of mosquitos looks closer to a capped Poisson distribution and this can be used to fit a general linear model. 
@@ -196,7 +195,6 @@ ggplot(data = train, aes(x=glm1NumMosq, y=(NumMosquitos - glm1NumMosq))) +
 
 This is much worse, as it only predicts up to 3 mosquitos per trap and appears to undercount mosquitos quite a bit. The RMSE is much higher at 1955. Thus far, the first linear regression model is the best for predicting Mosquito number on the training data. 
 
-
 ## Data understanding: WNV presence distribution
 
 Moving on to predicting our target variable, the presence of West Nile Virus (WnvPresent in the data set), I will first examine the distribution of the variable. 
@@ -211,8 +209,7 @@ Finding WNV is rare, in only ~ 5% of cases. This means our classifier is unbalan
 
 ## Modeling: Logistic regression to predict WNV infection
 
-```{r}
-
+```{r, glm1}
 lgm1 <- glm(WnvPresent ~ NumMosquitos + ma10 + WetBulb + Tmin + Summer + Year, data = train, family = binomial(link = "logit"))
 
 train$Wnv.glm.Pred <- predict(lgm1, newdata = train, type = "response")
@@ -229,7 +226,7 @@ summary(lgm1)
 ## Evaluation 
 
 Now we can take a look at how well our model will perform based on where the cutoff for probability should be for predicting WnvPresent.
-```{r}
+```{r glm1 model evaluation}
 model.evaluate(train$WnvPresent, train$Wnv.glm.Pred)
 ```
 
@@ -253,7 +250,7 @@ test$NumMosQuartile <- as.factor(test$NumMosQuartile)
 
 ## Modeling: Logistic regression to predict WNV infection with binned mosquito numbers
 
-```{r}
+```{r glm2 binning}
 lgm2 <- glm(WnvPresent ~ NumMosQuartile + ma10 + WetBulb + Tmin + Summer + Year, data = train, family = binomial(link = "logit"))
 
 train$Wnv.glm2.Pred <- predict(lgm2, newdata = train, type = "response")
@@ -269,11 +266,13 @@ summary(lgm2)
 
 ### Evaluation 
 
-```{r}
+```{r glm2 binning eval}
 model.evaluate(train$WnvPresent, train$Wnv.glm2.Pred)
 ```
 
 The AUC for the test set, after submitting the predicted probabilities to Kaggle was 0.700. Since this is a bit lower than the 0.841 AUC from the training set, this model is likely overfit to the training set. 
+
+# CRISP Iteration 3
 
 ## Data understanding: Number of mosquitos, revisited
 
@@ -290,7 +289,7 @@ test$glm2NumMosq <- predict(glm2, newdata = test)
 summary(glm2)
 
 ggplot(data = train, aes(x=glm2NumMosq, y=(NumMosquitos - glm2NumMosq))) + 
-  geom_point(alpha = 0.05) + stat_smooth() + 
+  geom_point(alpha = 0.05) + stat_smooth(method = lm) + 
   ggtitle("Residual plot for estimating Mosquito number using Poisson regression model on weather data") + 
   xlab("Predicted number of Mosquitos in training set") + ylab("Residual error (Actual - Predicted)")
 ```
@@ -337,12 +336,6 @@ ctrl <- trainControl(method = "repeatedcv",
                      classProbs = TRUE, 
                      summaryFunction = twoClassSummary)
 
-# Change WnvPresent from logical to factor
-train$WnvPresent2 <- as.character(train$WnvPresent)
-train$WnvPresent2[train$WnvPresent2== "TRUE"] <- "WNV.Pos"
-train$WnvPresent2[train$WnvPresent2== "FALSE"] <- "WNV.Neg"
-train$WnvPresent2 <- as.factor(train$WnvPresent2)
-
 set.seed(300)
 glmboost <- train(WnvPresent2 ~ nrows + precip10d + ma10 + Tmin + Summer + Year,
               data = train, 
@@ -363,11 +356,13 @@ model.evaluate(train$WnvPresent, train$glmboost.Pred[,2])
 
 Glmboost delivers 0.720 AUC on Kaggle. 
 
+# CRISP Iteration 4
+
 ## Business/data understanding: Effect of geography and location
 
 The first set of models did not involve geographical information or any trap-specific information. There is likely to be an effect based on a trap's geographic location. Next, I wanted to visually examine the relationship between geography and West Nile presence. First I created a map of Wnv incidents as a density plot. Here, the density is based off of the overall positive count for each trap. 
 
-```{r}
+```{r density map}
 suppressMessages(library(ggmap))
 chicago <- get_map("Chicago")
 wnpositive <- filter(train, WnvPresent == TRUE)
@@ -396,37 +391,12 @@ Instead, I am choosing to group the traps into clusters and include the cluster 
 
 ## Data preparation: Clustering traps according to location and WNV presense
 
-To create clusters of traps I want to incorporate not only geographical information, but WNV rate as well. This will help to create breaks in my clusters that are informative for predicting future WNV rate. 
+To create clusters of traps I want to incorporate not only geographical information, but WNV rate as well. This will help to create breaks in my clusters that are informative for predicting future WNV rate. The code for clustering is found in the "06_geo_cluster.R" script.
 
 ```{r Geo clustering}
-trap_geo_hot <- train %>% group_by(Trap, Longitude, Latitude) %>% 
-  summarise(number = n(), WnvTot = sum(WnvPresent)) %>% 
-  mutate(WnvAvg = WnvTot/number) %>% 
-  select(Trap, Latitude, Longitude, WnvAvg) %>% 
-  arrange(Trap)
-
-test_geo <- test %>% group_by(Trap, Longitude, Latitude) %>% 
-  summarise(number = n()) %>%
-  select(Trap, Latitude, Longitude) %>% 
-  arrange(Trap)
-
-trap_geo_hot <- left_join(trap_geo_hot, test_geo)
-trap_geo_hot$WnvAvg[trap_geo_hot$WnvAvg == 0] <- WnvPresentOverall
-
-# Geographic + Hotspot clusters using k-means with k=6
-set.seed(123)
-geo.hot.cl <- kmeans(trap_geo_hot[,2:4], centers = 6)
-trap_geo_hot$geo.hot.cl <- as.factor(geo.hot.cl$cluster)
-#trap_geo_hot$geo.hot.cl <- as.factor(trap_geo_hot$geo.hot.cl)
-#ggplot(trap_geo_hot, aes(Longitude, Latitude, color = geo.hot.cl)) + geom_point()
-
-# Add Geographic hotspot clusters to trainset
-
-train <- left_join(train, trap_geo_hot, by = c("Trap", "Longitude", "Latitude"))
-save(train, file = "./data/train.RData")
-
-test <- left_join(test, trap_geo_hot, by = c("Trap", "Longitude", "Latitude"))
-save(test, file = "./data/test.RData")
+load("./data/train_geo.RData")
+load("./data/test_geo.RData")
+load("./data/trap_geo_hot.RData")
 
 ggplot(trap_geo_hot, aes(Longitude, Latitude, color = geo.hot.cl)) + geom_point()
 
@@ -440,84 +410,57 @@ ggmap(chicago) + geom_density2d(data = wnpositive, aes(x = Longitude, y = Latitu
   geom_point(data = trap_geo_hot, aes(x = Longitude, y = Latitude, shape = geo.hot.cl)) + scale_shape_discrete(name = "Trap Cluster")
 ```
 
-## Modeling: decision tree
+## Modeling: Geo coordinates and running total of nrows
 
-Another type of modeling that will help in WNV classification is decision trees. Adding this type of model will help to connect non-linear relationships among the predictors. 
+This final model will incorporate the geographic regions and the recent history of mosquito populations as estimated by the number of rows of observations in the training and test sets. 
 
-```{r, eval=FALSE, include=FALSE}
-suppressMessages(library(C50))
+```{r Glmboost with regions and nrow history, cache=TRUE}
+suppressMessages(library(caret))
 
-trainC50df <- train %>% select(WnvPresent, geo.hot.cl, Species, nrows, Summer, WeekAvgMos, Tmin, WetBulb, ResultSpeed, ma10, precip3d, precip5d, precip10d)
+ctrl <- trainControl(method = "repeatedcv", 
+                     number = 10, 
+                     repeats = 3,
+                     classProbs = TRUE, 
+                     summaryFunction = twoClassSummary)
 
-trainC50df$WnvPresent <- as.factor(trainC50df$WnvPresent)
-save(trainC50df, file = "./data/trainC50df.RData")
+set.seed(300)
+glmboost2 <- train(WnvPresent2 ~ nrows + nrow.3d + nrow.5d + nrow.10d + ma10 + WetBulb + Summer + geo.hot.cl,
+              data = train_geo, 
+              method = "glmboost",
+              metric = "ROC",
+              trControl = ctrl,
+              tuneLength = 5,
+              center = TRUE,
+              family = Binomial(link = c("logit")))
 
-c50m <- C5.0(WnvPresent ~., data = trainC50df, trials = 1)
-trainpredict <- predict(c50m, newdata = train, type = "prob")
-?C5.0
+train_geo$glmboost2.Pred <- predict(glmboost2, newdata = train_geo, type = "prob")
+test_geo$glmboost2.Pred <- predict(glmboost2, newdata = test_geo, type = "prob")
+test_geo$glmboost2.Pred2 <- test_geo$glmboost2.Pred[,2]
+glm.submission5 <- select(test_geo, Id, WnvPresent = glmboost2.Pred2)
+write_csv(glm.submission5, path = "./data/glm.submission5.csv")
 
-roc1 <- roc(train$WnvPresent, trainpredict[,2])
-auc(roc1)
-
-summary(c50m)
-
-?predict
-test$C50.Wnv.pred <- predict(c50m, newdata = test, type = "prob")
+train_geo$glmboost2.Pred <- train_geo$glmboost2.Pred[,2]
+model.evaluate(train_geo$WnvPresent, train_geo$glmboost2.Pred)
 ```
 
-Every prediction is the same for this classifier...
-
-## Data understanding: WNV presense
-
-I next wanted to examine more closely the distribution of WNV presence throughout the season. For each Year-Week-Trap combination, compute the ratio of WNV presense to total tests. Then graph the distribution with Weeks as the dependent variable.
-
-```{r}
-
-YWT_ratio <- train %>% group_by(Year, Week, Trap) %>% summarise(WnvPresent_ratio = sum(WnvPresent)/(sum(WnvPresent)+sum(!WnvPresent)))
-hist(YWT_ratio$WnvPresent_ratio)
-ggplot(YWT_ratio, aes(x=Week, y=WnvPresent_ratio)) + geom_jitter() + ggtitle("Ratio of WNV over Weeks") + stat_smooth()
-
-W_ratio <- train %>% group_by(Week) %>% summarise(WnvPresent_ratio = sum(WnvPresent)/(sum(WnvPresent)+sum(!WnvPresent)))
-hist(W_ratio$WnvPresent_ratio)
-ggplot(W_ratio, aes(x=Week, y=WnvPresent_ratio)) + geom_jitter() + ggtitle("Ratio of WNV over Weeks") + stat_smooth()
-
-W_count <- train %>% group_by(Week) %>% summarise(WnvPresent_count = sum(WnvPresent))
-ggplot(W_count, aes(x=Week, y=WnvPresent_count)) + geom_jitter() + ggtitle("Count of WNV over Weeks") + stat_smooth()
-
-W_count_loess <- loess(WnvPresent_count ~ Week, data = W_count)
-# plot residuals
-plot(W_count_loess$residuals)
-
-W_count_loess$fitted
-```
-
-## Modeling:
-
-I would like to incorporate the above distribution, which looks approxiamately normal throughout the season. 
-
-## Evaluation: 
-
-
-## Modeling 4: Random Forest
-
-```{r}
-suppressMessages(library(randomForest))
-train$WnvPresent <- as.factor(train$WnvPresent)
-train$geo.hot.cl <- as.factor(train$geo.hot.cl)
-rf <- randomForest(WnvPresent ~ nrows+geo.hot.cl+Tavg+Tmin+WetBulb+ResultSpeed+ma5+ma10+precip5d,
-                   data = train, ntree = 500, mtry = 3)
-rf
-
-
-```
-
+This model achieves an AUC score of 0.715 on Kaggle.  
 
 # Final ensembling and deployment
 
+I extracted the probabilities obtained by each model and then averaged them using excel. This submission achieved a 0.715 AUC, which is not as good as the first glmboosted model. It's possible that these models are not varied enough in their type to benefit from ensembling. They are all generalized linear models. I attempted to use a C5.0 decision tree classifier and random forest models, but ran in to some difficulty as they kept giving me identical predictions for every observation in the test set. I think that part of the reason was due to the imbalance of the positive class. This can be mediated by oversampling positive cases or undersampling negative cases and building a model from such an artificially balanced data set. 
+
+```{r ensembling}
+models <- test %>% select(Id, Wnv.glm.Pred, Wnv.glm2.Pred, Wnv.glm3.Pred, glmboost.Pred2)
+geo_model <- test_geo %>% select(Id, glmboost2.Pred2)
+models <- left_join(models, geo_model, by = "Id")
+
+write_csv(models, path = "./data/final_submission.csv")
+```
 
 
 
-```{r}
+
+```{r Session Info for Reproducibility}
 sessionInfo()
 ```
 
