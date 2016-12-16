@@ -3,13 +3,13 @@ title: "West Nile Virus Project"
 author: "Keith Hultman"
 date: "12/4/2016"
 output:
+  pdf_document:
+    toc_depth: '2'
   html_document:
     TOC: yes
     code_folding: hide
     fig_caption: yes
     toc_depth: 2
-  pdf_document:
-    toc_depth: '2'
 ---
 
 ```{r setup, include=FALSE}

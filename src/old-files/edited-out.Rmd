@@ -1,0 +1,84 @@
+---
+title: "extra"
+author: "Keith Hultman"
+date: "12/16/2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This is code that did not make it into the final cut...
+
+
+
+## Modeling: decision tree
+
+Another type of modeling that will help in WNV classification is decision trees. Adding this type of model will help to connect non-linear relationships among the predictors. 
+
+```{r, eval=FALSE, include=FALSE}
+suppressMessages(library(C50))
+
+trainC50df <- train %>% select(WnvPresent, geo.hot.cl, Species, nrows, Summer, WeekAvgMos, Tmin, WetBulb, ResultSpeed, ma10, precip3d, precip5d, precip10d)
+
+trainC50df$WnvPresent <- as.factor(trainC50df$WnvPresent)
+save(trainC50df, file = "./data/trainC50df.RData")
+
+c50m <- C5.0(WnvPresent ~., data = trainC50df, trials = 1)
+trainpredict <- predict(c50m, newdata = train, type = "prob")
+?C5.0
+
+roc1 <- roc(train$WnvPresent, trainpredict[,2])
+auc(roc1)
+
+summary(c50m)
+
+test$C50.Wnv.pred <- predict(c50m, newdata = test, type = "prob")
+```
+
+Every prediction is the same for this classifier...
+
+## Data understanding: WNV presense
+
+I next wanted to examine more closely the distribution of WNV presence throughout the season. For each Year-Week-Trap combination, compute the ratio of WNV presense to total tests. Then graph the distribution with Weeks as the dependent variable.
+
+```{r}
+
+YWT_ratio <- train %>% group_by(Year, Week, Trap) %>% summarise(WnvPresent_ratio = sum(WnvPresent)/(sum(WnvPresent)+sum(!WnvPresent)))
+hist(YWT_ratio$WnvPresent_ratio)
+ggplot(YWT_ratio, aes(x=Week, y=WnvPresent_ratio)) + geom_jitter() + ggtitle("Ratio of WNV over Weeks") + stat_smooth()
+
+W_ratio <- train %>% group_by(Week) %>% summarise(WnvPresent_ratio = sum(WnvPresent)/(sum(WnvPresent)+sum(!WnvPresent)))
+hist(W_ratio$WnvPresent_ratio)
+ggplot(W_ratio, aes(x=Week, y=WnvPresent_ratio)) + geom_jitter() + ggtitle("Ratio of WNV over Weeks") + stat_smooth()
+
+W_count <- train %>% group_by(Week) %>% summarise(WnvPresent_count = sum(WnvPresent))
+ggplot(W_count, aes(x=Week, y=WnvPresent_count)) + geom_jitter() + ggtitle("Count of WNV over Weeks") + stat_smooth()
+
+W_count_loess <- loess(WnvPresent_count ~ Week, data = W_count)
+# plot residuals
+plot(W_count_loess$residuals)
+
+W_count_loess$fitted
+```
+
+## Modeling:
+
+I would like to incorporate the above distribution, which looks approxiamately normal throughout the season. 
+
+## Evaluation: 
+
+
+## Modeling 4: Random Forest
+
+```{r}
+suppressMessages(library(randomForest))
+train$WnvPresent <- as.factor(train$WnvPresent)
+train$geo.hot.cl <- as.factor(train$geo.hot.cl)
+rf <- randomForest(WnvPresent ~ nrows+geo.hot.cl+Tavg+Tmin+WetBulb+ResultSpeed+ma5+ma10+precip5d,
+                   data = train, ntree = 500, mtry = 3)
+rf
+
+
+```

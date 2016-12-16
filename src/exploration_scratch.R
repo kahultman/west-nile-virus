@@ -1,21 +1,14 @@
----
-title: "WNV Exploration"
-author: "Keith Hultman"
-date: "November 19, 2016"
-output: html_document
----
+# title: "WNV Exploration"
+# author: "Keith Hultman"
+# date: "November 19, 2016"
+#
+# Explore ideas for WNV project
+#
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
 
-```{r}
+
 library(tidyverse)
 load("./data/trainset1.RData")
-
-
-
-
 
 by_week <- trainset1 %>% select(Week, NumMosquitos) %>%
   group_by(Week) %>%
@@ -39,19 +32,19 @@ ggplot(trainset1, aes(x=Week, y=NumMosquitos)) + geom_jitter() + geom_smooth() +
 ggplot(trainset1, aes(Week, NumMosquitos, group=Week)) + geom_boxplot() + ggtitle("Average number of mosquitos per week")+ ylab("Average number of mosquitos per trap")
 
 ggplot(trainset1, aes(x=(abs(32-Week)), y=NumMosquitos)) + geom_jitter() + geom_smooth() + 
-ggplot(trainset1, aes(x=Summer, y=NumMosquitos)) + geom_jitter() + geom_smooth() + ggtitle("Average number of mosquitos per week from week 32")+ ylab("Average number of mosquitos per trap")
+  ggplot(trainset1, aes(x=Summer, y=NumMosquitos)) + geom_jitter() + geom_smooth() + ggtitle("Average number of mosquitos per week from week 32")+ ylab("Average number of mosquitos per trap")
 
 week32 <- trainset1 %>% filter(Week == 32) 
 week24 <- trainset1 %>% filter(Week == 24)
 
 qqnorm(week32$NumMosquitos)
 qqnorm(week24$NumMosquitos)
-```
+
 
 
 ## Animated map!
 
-```{r}
+
 library(tidyverse)
 library(gganimate)
 library(animation)
@@ -69,11 +62,11 @@ map_mosq <- ggplot(trainset2, aes(x=Longitude, y=Latitude,
 animated_map_mosq <- gg_animate(map_mosq)
 animated_map_mosq
 gg_animate_save(animated_map_mosq, filename = "Animated Mosquito Map.gif")
-```
+
 
 By year and week
 
-```{r}
+
 byyearweek <- group_by(trainset2, Year, Week) %>% summarize(weekly_avg_mosq=mean(NumMosquitos))
 
 trainset2$timepoint <- ((trainset2$Year - 2007) + (trainset2$Week / 52)) * 52
@@ -91,10 +84,10 @@ animated_map_mosq <- gg_animate(map_mosq)
 animated_map_mosq
 
 gg_animate_save(animated_map_mosq, filename = "mosq_map.gif")
-```
 
 
-```{r}
+
+
 library(tweenr)
 
 traincomplete <- complete(trainset2, Trap, nesting(Longitude, Latitude), Week)
@@ -116,15 +109,15 @@ tw_mosq[[2]]
 
 
 tw_mosq2 <- tween_states(tw_mosq, tweenlength = 3, 
-                       statelength = 1, 
-                       ease = "linear",
-                       nframes = 100)
+                         statelength = 1, 
+                         ease = "linear",
+                         nframes = 100)
 
 map_mosq <- ggplot(tw_mosq2, aes(x=Longitude, y=Latitude, 
-                                  size=NumMosSum, 
-                                  color=WnvSum,
-                                  alpha = 0.5,
-                                  frame=.frame)) + 
+                                 size=NumMosSum, 
+                                 color=WnvSum,
+                                 alpha = 0.5,
+                                 frame=.frame)) + 
   geom_point() + 
   ggtitle("Animated map of mosquitos and presence of West Nile Virus in Chicago")
 
@@ -133,9 +126,9 @@ load("./data/map_mosq.RData")
 gg.map <- gg_animate(map_mosq)
 gg_animate_save(gg.map, filename = "mosq.map.gif")
 gg_animate(map_mosq, interval=0.2)
-```
 
-```{r}
+
+
 library(ggmap)
 
 chicago <- get_map("Chicago")
@@ -150,11 +143,11 @@ ani_map <- ggmap(chicago) +
 gg_ani_map <- gg_animate(ani_map)
 gg_animate_save(gg_ani_map, filename = "Chicago Mosq animated map.gif")
 gg_animate(ani_map, interval = 0.2)
-```
 
-Heatmap
 
-```{r}
+#Heatmap
+
+
 wnpositive <- filter(trainset1, WnvPresent == TRUE)
 ggmap(chicago) + geom_jitter(aes(x = Longitude, y = Latitude), color = "red", 
                              alpha = 0.1, size = 2, data = wnpositive)
@@ -163,16 +156,9 @@ load("./data/traps.RData")
 
 ggmap(chicago) + geom_density2d(data = wnpositive, aes(x = Longitude, y = Latitude), size = 0.3) + 
   stat_density2d(data = wnpositive, aes(x = Longitude, y = Latitude, fill = ..level.., alpha = ..level..), size = 0.01, 
-    bins = 16, geom = "polygon") + 
+                 bins = 16, geom = "polygon") + 
   scale_fill_gradient(low = "green", high = "red") + 
   scale_alpha(range = c(0, 0.3), guide = FALSE) + 
   ggtitle("Heat map of West Nile Virus positive traps") + 
   geom_point(data = traps, aes(x = Longitude, y = Latitude), shape = 4)
-
-
-```
-
-
-
-
 
