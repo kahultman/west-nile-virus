@@ -1,5 +1,5 @@
 ---
-title: "WNV Project"
+title: "West Nile Virus Project"
 author: "Keith Hultman"
 date: "12/4/2016"
 output:
@@ -24,45 +24,50 @@ source("../src/functions.R")
 # source("../src/06_geo_cluster.R")
 ```
 
-# West Nile Virus Prediction
+This project will attempt to predict the likelihood of a positive test for West Nile Virus (WNV) in mosquitos captured using traps around Chicago, IL. The data sets originate from the Kaggle competition, [West Nile Virus Prediction](https://www.kaggle.com/c/predict-west-nile-virus). 
 
-This project will attempt to predict the likelihood of a positive test for West Nile Virus in mosquitos captured using traps around Chicago, IL. The data sets originate from the Kaggle competition, [West Nile Virus Prediction](https://www.kaggle.com/c/predict-west-nile-virus). 
-
-This analysis will use an iterative approach to finding a production model for West Nile forecasting. There are several data science iterative methods, and I will use the [CRISP](./images/CRISP.png) model for organizing this project. 
+The analysis will follow an iterative approach to finding a production model for West Nile forecasting. There are several data science iterative methods, and I will use the [CRISP](./images/CRISP.png) model for organizing this project. 
 
 # CRISP Iteration 1
 
 ## Business Understanding 
 
-Kaggle supplies five data sets for the competition, three of which can be used in model training. The train.csv file includes several variables associated with each West Nile Virus test including the trap id, geo-coordinates, date, species of mosquito present, number of mosquitos present, and a binary variable indicating the presence or absence of West Nile Virus (WnvPresent), our target variable. The test.csv contains all of the same features as the train.csv file except the number of mosquitos present and the target WnvPresent variable. These data sets were obtained from West Nile Virus testing period between 2007 and 2014 with the training set containing the odd years and the test set containing the even years. The weather.csv file contains historic weather data collected at the O'Hare and Midway airports concurrent with the mosquito testing time period. The spray.csv file includes the date and location of chemical spraying conducted by the city during 2011 and 2013. Since this spray data set would only have a large impact during one of the training years, I did not include the spray data in any of my models. 
+The goal for this project is to develop a predictive model that will forecast the probability of WNV presense in 138 mosquito traps around Chicago over the course of a season. WNV is a communicable disease that is spread through its most common vector, mosquitos. Most people infected with WNV develop no symtoms, but 1% will develop neurological symptoms including headache, high fever, neck stiffness, disorientation, coma, tremors, seizures, or paralysis, according to the [CDC](https://www.cdc.gov/westnile/index.html). There are no medical treatments or cures for WNV, so preventative measures are required to reduce infection to the human population. Local community methods of mosquito control include reduction of larval habitats and applying insecticides targetting larvae or adult mosquitoes.  
+
+To aid in the correct application of insecticides, being able to predict the most likely sites of WNV outbreak is highly valuable to reduce the financial and human cost of over-application of insecticides. This project will focus on developing a predictive model based on geographic information, weather conditions, presense of mosquito species, and historical trends of mosquito populations and WNV presense in the Chicago area.   
 
 ## Data Understanding 
 
-One of the largest factors in whether West Nile Virus is present or not is the number of mosquitos found in each trap. However, this variable is not present in the test set, and will need to be imputed from other variables before a final model can be fit to the presence of West Nile. 
+Kaggle supplies five data sets for the competition, three of which can be used in model training. The train.csv file includes several variables associated with each West Nile Virus test including the trap id, geo-coordinates, date, species of mosquito present, number of mosquitos present, and a binary variable indicating the presence or absence of West Nile Virus (WnvPresent), our target variable. The test.csv contains all of the same features as the train.csv file except the number of mosquitos present and the target WnvPresent variable. These data sets were obtained from West Nile Virus testing period between 2007 and 2014 with the training set containing the odd years and the test set containing the even years. The weather.csv file contains historic weather data collected at the O'Hare and Midway airports concurrent with the mosquito testing time period. The spray.csv file includes the date and location of chemical spraying conducted by the city during 2011 and 2013. Since this spray data set would only have a large impact during one of the training years, I did not include the spray data in any of my models. For the weather data, since the differences in variables between O'Hare and Midway were so small, I chose to simply use the O'Hare data for all traps, rather than compute the closest station for each trap. 
 
-```{r}
+One of the largest factors for viral load within a population is the size of the population. A larger population means there are more mosquitos who can become infected and it also increases the number of interactions between hosts, allowing faster spread of virus from individual to individual. The size of the population can be estimated from the number of mosquitos found in each trap. However, *this variable is not present in the test set*, and will need to be imputed from other variables before a final model can be fit to the presence of West Nile using population as an input. 
+
+```{r load | plot number and wnv present}
 suppressMessages(library(tidyverse))
 load("./data/train.RData")
 load("./data/test.RData")
 
-ggplot(train, aes(x=WnvPresent, y=NumMosquitos)) + geom_boxplot() + ggtitle("Number of mosquitos in West Nile Virus negative and positive traps") + xlab("West Nile Virus present in trap") + ylab("Number of mosquitos in trap")
+ggplot(train, aes(x=WnvPresent, y=NumMosquitos)) + geom_jitter(aes(color=WnvPresent)) + ggtitle("Number of mosquitos in West Nile \nVirus negative and positive traps") + xlab("West Nile Virus present in trap") + ylab("Number of mosquitos in trap")
+
+train %>% group_by(Trap, Week) %>% 
+  summarise(WNVrate = sum(WnvPresent)/n(), NumMosPer = sum(NumMosquitos)/n()) %>% 
+  ggplot(aes(NumMosPer, WNVrate)) + geom_point() + stat_smooth() +
+  ggtitle("Scatterplot of mosquito count in traps to WNV rate") +
+  xlab("Number of mosquitos in traps per week") + ylab("WNV positive rate")
 ```
 
-Based on this initial data exploration, I will first try and develop a model that predicts the number of mosquitos in each trap and then use that predicted value as a variable in a model that predicts whether West Nile is present or absent. For predicting the number of mosquitos, I will primarily be using weather variables and weekly historic averages. 
+Based on this initial data exploration, I will first try and develop a model that predicts the number of mosquitos in each trap and then use that predicted value as a variable in a model that predicts whether West Nile is present or absent. For predicting the number of mosquitos, I will first attempt using weather variables and weekly historic averages. Before modeling I examined scatterplots of various input variables agains mosquito counts, like the graph below comparing temperature to mosquito counts. 
 
-```{r}
+```{r plot temp vs num}
 ggplot(train, aes(x=Tavg, y=NumMosquitos)) + geom_jitter() + geom_smooth(method=lm) + ggtitle("Number of mosquitos vs average daily temperature") + xlab("Average daily temperature, degree F") + ylab("Number of mosquitos per trap")
 
 ```
 
-
-
-
 ## Data Preparation 
 
+I cleaned up the weather and training data sets to impute missing values and delete non-informative columns. I next engineered several attributes from existing variables that I thought would be useful. Moving averages of temperature and precipitation, as well as weekly averages in overall mosquito counts were added to weather and training respectively. The code for variable engineering scripts (01_weather.R, 02_train.R) can be found in the src folder. 
 
-
-## Modeling 1a: Linear regression to predict mosquito population
+## Modeling: Linear regression to predict mosquito population
 
 For this first round of modeling, I will use linear regression to predict the number of mosquitos using weather data and historical averages per week. I expect that higher average temperatures and greater moisture should have a positive effect on the mosquito population.
 
@@ -89,6 +94,7 @@ lm_variables <- paste(lm_variables, collapse = "+")
 fmla <- paste("NumMosquitos", lm_variables, sep = "~")
 
 lm1 <- lm(fmla, data = train)
+
 train$lmNumMosq <- predict(lm1, newdata = train)
 test$lmNumMosq <- predict(lm1, newdata = test)
 
@@ -97,22 +103,20 @@ summary(lm1)
 
 ## Evaluate linear model for predicting mosquito number
 
-The R^2 of our first model is 0.11, meaning that only 11% of observed mosquito population variation is explained by our weather model.To further evaluate the linear regression model, we can examine the residual errors against actual numbers in the training data. 
+The R^2 of the first model is 0.11, meaning that only 11% of observed mosquito population variation is explained by our weather model.To further evaluate the linear regression model, we can examine the residual errors against predicted numbers in the training data. 
 
 ```{r lm1 residual plot}
-#ggplot(data = train, aes(x=lmNumMosq, y=(NumMosquitos - lmNumMosq))) + geom_point(alpha = 0.05)
-ggplot(data = train, aes(x=lmNumMosq, y=(NumMosquitos - lmNumMosq))) + geom_point(alpha = 0.05) + xlab("Predicted number of Mosquitos in training set") + ylab("Residual error (Actual - Predicted)") + ggtitle("Residual plot for estimating Mosquito number using linear model on weather data") + stat_smooth(method=lm)
-
+ggplot(data = train, aes(x=lmNumMosq, y=(NumMosquitos - lmNumMosq))) + 
+  geom_point(alpha = 0.05) + 
+  ggtitle("Residual plot for estimating Mosquito number using linear model on weather data") +
+  xlab("Predicted number of Mosquitos in training set") + 
+  ylab("Residual error (Actual - Predicted)") + 
+  stat_smooth(method=lm)
 ```
 
 The residual plot appears to show bias in overestimating mosquitos at the low end and underestimating at the high end. However, the trend shows that this is indeed zero. Let's now include historical averages for each week in the year. We can also remove some variables that were not significantly informative. 
 
 ```{r mosquito linear regression 2}
-weeklyAvgNumMosq <- train %>% group_by(Week) %>% summarise(WeekAvgMos = mean(NumMosquitos)) %>% ungroup()
-
-
-train <- add_week_avg_mosq(train)
-test <- add_week_avg_mosq(test)
 
 lm_variables <- c("WeekAvgMos",
                       "Tavg",
@@ -135,12 +139,11 @@ ggplot(data = train, aes(x=lmNumMosq, y=(NumMosquitos - lmNumMosq))) + geom_poin
 
 ```
 
+# CRISP Iteration 2
 
+## Data Understanding: Mosquito number distribution
 
-
-## Mosquito number distribution
-
-I next needed to examine the distribution of the Mosquito counts. 
+I next wanted to go back and examine the distribution of the Mosquito counts a bit further. 
 
 ```{r Mosquito Distribution}
 
@@ -168,7 +171,7 @@ test$NumMosQuartile <- with(test, cut(lmNumMosq, breaks=quantile(train$NumMosqui
 #sum(is.na(test$NumMosQuartile))
 ```
 
-## Poisson Regression
+## Modeling: Poisson Regression
 
 The distribution of mosquitos looks closer to a capped Poisson distribution and this can be used to fit a general linear model. 
 
@@ -185,34 +188,6 @@ ggplot(data = train, aes(x=glm1NumMosq, y=(NumMosquitos - glm1NumMosq))) + geom_
 
 This is much worse, as it only predicts up to 3 mosquitos per trap and appears to undercount mosquitos quite a bit. 
 
-## Data understanding: Number of mosquitos
-
-One important feature of how this data is collected and organized, is that the number of mosquitos in each trap is actually spread out over multiple rows. Therefore, we should collapse and combine multiple rows to find the number of mosquitos present in the environment. We also gain information from the separate rows mostly for the species information - some species are found in rows that are positive and not in rows that are negative from the same trap and this is useful information. 
-
-```{r Real counts of Mosquitos and Poisson}
-Mosq_number <- train %>% group_by(Trap, Date) %>% summarise(Mosq_count = sum(NumMosquitos), nrows = n())
-train <- left_join(train, Mosq_number, by = c("Trap", "Date"))
-
-
-fmla <- paste("Mosq_count", lm_variables, sep = "~")
-
-glm1 <- glm(fmla, data = train, family = "poisson")
-train$glm1NumMosq <- predict(glm1, newdata = train)
-test$glm1NumMosq <- predict(glm1, newdata = test)
-
-summary(glm1)
-
-ggplot(data = train, aes(x=glm1NumMosq, y=(NumMosquitos - glm1NumMosq))) + geom_point(alpha = 0.05) + xlab("Predicted number of Mosquitos in training set") + ylab("Residual error (Actual - Predicted)") + ggtitle("Residual plot for estimating Mosquito number using Poisson regression model on weather data") + stat_smooth()
-
-```
-
-The number of rows in the training set for each trap-date combination is highly correlated with total mosquitos in the trap. This feature, the number of rows for trap-date, is present in the test set as well. 
-
-```{r}
-ggplot(data = train, aes(nrows, Mosq_count)) + geom_point() + ggtitle("Number of rows for each Trap reveals an estimate for total number of mosquitos")
-```
-
-This feature was used by winning competitors to estimate the number of mosquitos. However, I feel this is a bit of cheating for business question which involves predicting the probability of WNV for an entire year. In actual practice, we would not know how many 'trap'-ful amounts of mosquitos will be tested. 
 
 ```{r}
 
@@ -221,7 +196,7 @@ This feature was used by winning competitors to estimate the number of mosquitos
 
 
 
-## WNV Distribution
+## Data understanding: WNV presence distribution
 
 Moving on to predicting our target variable, the presence of West Nile Virus (WnvPresent in the data set), I will first examine the distribution of the variable. 
 
@@ -231,7 +206,7 @@ table(train$WnvPresent)
 table(train$WnvPresent)[2] / sum(table(train$WnvPresent))
 ```
 
-Finding WNV is rare, in only ~ 5% of cases. 
+Finding WNV is rare, in only ~ 5% of cases. This means our classifier is unbalanced and should be kept in mind when coming up with models that accurately predict such a rare event. 
 
 
 ## Modeling 1b: Logistic regression to predict WNV infection
@@ -266,7 +241,40 @@ model.evaluate(train$WnvPresent, train$Wnv.glm.Pred)
 
 The AUC for the test set, after submitting the predicted probabilities to Kaggle was 0.700. Since this is a bit lower than the 0.814 AUC from the training set, this model is likely overfit to the training set. 
 
-## Using number of rows as an estimate of mosquito number
+## Data understanding: Number of mosquitos, again
+
+One important feature of how this data is collected and organized, is that the number of mosquitos in each trap is actually spread out over multiple rows. Therefore, we should collapse and combine multiple rows to find the number of mosquitos present in the environment. We also gain information from the separate rows mostly for the species information - some species are found in rows that are positive and not in rows that are negative from the same trap and this is useful information. 
+
+```{r Real counts of Mosquitos and Poisson}
+Mosq_number <- train %>% group_by(Trap, Date) %>% summarise(Mosq_count = sum(NumMosquitos), nrows = n())
+train <- left_join(train, Mosq_number, by = c("Trap", "Date"))
+
+testMosq_number <- test %>% group_by(Trap, Date) %>% summarise(nrows = n())
+test <- left_join(test, testMosq_number, by = c("Trap", "Date"))
+
+
+
+fmla <- paste("Mosq_count", lm_variables, sep = "~")
+
+glm1 <- glm(fmla, data = train, family = "poisson")
+
+train$glm1NumMosq <- predict(glm1, newdata = train)
+test$glm1NumMosq <- predict(glm1, newdata = test)
+summary(glm1)
+
+ggplot(data = train, aes(x=glm1NumMosq, y=(NumMosquitos - glm1NumMosq))) + geom_point(alpha = 0.05) + xlab("Predicted number of Mosquitos in training set") + ylab("Residual error (Actual - Predicted)") + ggtitle("Residual plot for estimating Mosquito number using Poisson regression model on weather data") + stat_smooth()
+
+```
+
+The number of rows in the training set for each trap-date combination is highly correlated with total mosquitos in the trap. This feature, the number of rows for trap-date, is present in the test set as well. 
+
+```{r number of rows vs mosquito count}
+ggplot(data = train, aes(nrows, Mosq_count)) + geom_point() + ggtitle("Number of rows for each Trap reveals an estimate for total number of mosquitos")
+```
+
+This feature was used by winning competitors to estimate the number of mosquitos. However, I feel this is a bit of cheating for the business understanding of the project which involves predicting the probability of WNV for an entire year. In actual practice, we would not know how many 'trapfulls' amounts of mosquitos will be tested in the future. 
+
+## Modeling: Using number of rows as proxy for mosquito number in logistic regression
 
 ```{r nrows Log Reg}
 lgm2 <- glm(WnvPresent ~ nrows + ma10 + WetBulb + Tmin + Summer + Year, data = train, family = binomial(link = "logit"))
@@ -274,10 +282,6 @@ train$Wnv.glm2.Pred <- predict(lgm2, newdata = train, type = "response")
 
 
 model.evaluate(train$WnvPresent, train$Wnv.glm2.Pred)
-
-
-Mosq_number <- test %>% group_by(Trap, Date) %>% summarise(nrows = n())
-test <- left_join(test, Mosq_number, by = c("Trap", "Date"))
 
 test$Wnv.glm2.Pred <- predict(lgm2, newdata = test, type = "response")
 summary(lgm2)
@@ -288,21 +292,27 @@ write_csv(glm.submission2, path = "./data/glm.submission2.csv")
 
 This gives an AUC of 0.711 on Kaggle.
 
-# CRISP Iteration 2
+# Modeling: Boosted 
 
 The logistic regression model might be improved with using a boosting algorithm
  
 ```{r, eval=FALSE, include=FALSE}
 suppressMessages(library(caret))
 
-set.seed(300)
+
 ctrl <- trainControl(method = "repeatedcv", 
                      number = 10, 
                      repeats = 3,
                      classProbs = TRUE, 
                      summaryFunction = twoClassSummary)
 
-glmboost <- train(WnvPresent ~ NumMosquitos + precip10d + ma10 + Tmin + Summer + Year,
+train$WnvPresent <- as.character(train$WnvPresent)
+train$WnvPresent[train$WnvPresent== "TRUE"] <- "WNV.Pos"
+train$WnvPresent[train$WnvPresent== "FALSE"] <- "WNV.Neg"
+train$WnvPresent <- as.factor(train$WnvPresent)
+
+set.seed(300)
+glmboost <- train(WnvPresent ~ nrows + precip10d + ma10 + Tmin + Summer + Year,
               data = train, 
               method = "glmboost",
               metric = "ROC",
@@ -311,34 +321,33 @@ glmboost <- train(WnvPresent ~ NumMosquitos + precip10d + ma10 + Tmin + Summer +
               center = TRUE,
               family = Binomial(link = c("logit")))
 
+train$glmboos.Pred <- predict(glmboost, newdata = train, type = "prob")
+test$glmboost.Pred <- predict(glmboost, newdata = test, type = "prob")
+test$glmboos.Pred2 <- test$glmboost.Pred[,2]
 
-ctrl <- trainControl(method = "repeatedcv", number = 10, savePredictions = TRUE)
+set.seed(300)
+glmboost2 <- train(WnvPresent ~ nrows + precip10d + ma10 + Tmin + Summer + Year + geo.hot.cl + WnvAvg,
+              data = train, 
+              method = "glmboost",
+              metric = "ROC",
+              trControl = ctrl,
+              tuneLength = 5,
+              center = TRUE,
+              family = Binomial(link = c("logit")))
 
-lgm2 <- train(WnvPresent ~ NumMosquitos + precip10d + ma10 + Tmin + Summer + Year,  data=train, method="glm", family="binomial",
-                 trControl = ctrl, tuneLength = 5)
-
-train2 <- select(train, WnvPresent, NumMosquitos, precip10d, ma10, Tmin, Summer, Year)
-summary(train2)
-fitControl <- trainControl(method = "repeatedcv",
-                           number = 5,
-                           repeats = 10,
-                           ## Estimate class probabilities
-                           classProbs = TRUE,
-                           ## Evaluate performance using 
-                           ## the following function
-                           summaryFunction = twoClassSummary)
-
-set.seed(2014)
-
-glmBoostModel <- train(WnvPresent ~ ., data=train, method = "glmboost", metric="ROC", trControl = fitControl, tuneLength=5, center=TRUE, family=Binomial(link = c("logit")))
-
+glmboost2
+glmboost2.Pred <- predict(glmboost2, newdata = train, type = "prob")
+train$glmboos2.Pred2 <- glmboost2.Pred[,2]
+glmboost2.Pred <- predict(glmboost2, newdata = test, type = "prob")
+test$glmboos2.Pred2 <- glmboost2.Pred[,2]
+summary(train$geo.hot.cl)
 ```
 
-## Data Understanding 2
+Glmboost delivers 0.720 AUC on Kaggle. 
 
-The first model did not involve geographical information or any trap-specific information. Next, I wanted to visually examine the relationship between geography and West Nile presence. First I created a map of Wnv incidents as a density plot. Here, the density is based off of the overall positive count for each trap. 
+## Business/Data Understanding: Effect of geography and location
 
- 
+The first set of models did not involve geographical information or any trap-specific information. There is likely to be an effect based on a trap's geographic location. Next, I wanted to visually examine the relationship between geography and West Nile presence. First I created a map of Wnv incidents as a density plot. Here, the density is based off of the overall positive count for each trap. 
 
 ```{r}
 suppressMessages(library(ggmap))
@@ -368,7 +377,7 @@ There are various ways to incorporate geography. I could incorporate the trap id
 
 Instead, I am choosing to group the traps into clusters and include the cluster as a modeling parameter. The reasoning for this is that suspect that the true risk based on geography has a much lower actual precision than our ability to define latitude or longitude. 
 
-## Data Preparation 2
+## Data Preparation: Clustering traps according to location and WNV presense
 
 To create clusters of traps I want to incorporate not only geographical information, but WNV rate as well. This will help to create breaks in my clusters that are informative for predicting future WNV rate. 
 
@@ -389,11 +398,9 @@ trap_geo_hot$geo.hot.cl <- as.factor(geo.hot.cl$cluster)
 # Add Geographic hotspot clusters to trainset
 
 train <- left_join(train, trap_geo_hot, by = c("Trap", "Longitude", "Latitude"))
-
 save(train, file = "./data/train.RData")
 
 test <- left_join(test, trap_geo_hot, by = c("Trap", "Longitude", "Latitude"))
-
 save(test, file = "./data/test.RData")
 
 ggplot(trap_geo_hot, aes(Longitude, Latitude, color = geo.hot.cl)) + geom_point()
@@ -406,27 +413,28 @@ ggmap(chicago) + geom_density2d(data = wnpositive, aes(x = Longitude, y = Latitu
   ggtitle("Heat map of West Nile Virus positive traps") + 
   xlab("Longitude") + ylab("Latitude") +
   geom_point(data = trap_geo_hot, aes(x = Longitude, y = Latitude, shape = geo.hot.cl)) + scale_shape_discrete(name = "Trap Cluster")
-
 ```
 
 
-## Modeling 2a: Decision Tree
+## Modeling: Decision Tree
 
-C5.0 Decision trees
+Another type of modeling that will help in WNV classification is decision trees. Adding this type of model will help to connect non-linear relationships among the predictors. 
 
 ```{r, eval=FALSE, include=FALSE}
 suppressMessages(library(C50))
 
-train <- add_week_avg_mosq(train)
-test <- add_week_avg_mosq(test)
+# train <- add_week_avg_mosq(train)
+# test <- add_week_avg_mosq(test)
 
-trainC50df <- train %>% select(WnvPresent, Species, NumMosQuartile, Year, Week, WeekAvgMos, Tmin, WetBulb, PrecipTotal, ResultSpeed, ma10, precip3d, precip5d, precip10d)
+trainC50df <- train %>% select(WnvPresent, Species, nrows, Summer, WeekAvgMos, Tmin, WetBulb, ResultSpeed, ma10, precip3d, precip5d, precip10d)
+
 trainC50df$WnvPresent <- as.factor(trainC50df$WnvPresent)
 save(trainC50df, file = "./data/trainC50df.RData")
 
-c50m <- C5.0(WnvPresent ~., data = trainC50df, trials = 1, costs = NULL)
-trainpredict <- predict(c50m, newdata = train, type = "prob")
 
+c50m <- C5.0(WnvPresent ~., data = trainC50df, trials = 1)
+trainpredict <- predict(c50m, newdata = train, type = "prob")
+?C5.0
 
 roc1 <- roc(train$WnvPresent, trainpredict[,2])
 auc(roc1)
@@ -436,8 +444,9 @@ summary(c50m)
 
 ?predict
 test$C50.Wnv.pred <- predict(c50m, newdata = test, type = "prob")
-
 ```
+
+Every prediction is the same for this classifier...
 
 ## Data Understanding 3
 
@@ -477,6 +486,10 @@ I would like to incorporate the above distribution, which looks approxiamately n
 
 ```{r}
 suppressMessages(library(randomForest))
+train$WnvPresent <- as.factor(train$WnvPresent)
+rf <- randomForest(WnvPresent ~ nrows+geo.hot.cl+Tavg+Tmin+WetBulb+ResultSpeed+ma5+ma10+precip5d,
+                   data = train, ntree = 500, mtry = 3)
+rf
 
 
 ```
