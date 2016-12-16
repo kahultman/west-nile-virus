@@ -108,6 +108,12 @@ summary(lm1)
 The R^2 of the first model is 0.11, meaning that only 11% of observed mosquito population variation is explained by our weather model.To further evaluate the linear regression model, we can examine the residual errors against predicted numbers in the training data. 
 
 ```{r lm1 residual plot}
+RMSE <- function(x, y){
+  sqrt(sum((x-y)^2))
+}
+
+print(paste("RMSE score of lm1: ", round(RMSE(train$lmNumMosq, train$NumMosquitos), 1)))
+
 ggplot(data = train, aes(x=lmNumMosq, y=(NumMosquitos - lmNumMosq))) + 
   geom_point(alpha = 0.05) + 
   ggtitle("Residual plot for estimating Mosquito number using linear model on weather data") +
@@ -120,7 +126,7 @@ The residual plot appears to show bias in overestimating mosquitos at the low en
 
 ```{r mosquito linear regression 2}
 
-lm_variables <- c("WeekAvgMos",
+lm_variables2 <- c("WeekAvgMos",
                   "Tavg",
                   "Tmin",
                   "WetBulb",
@@ -129,16 +135,17 @@ lm_variables <- c("WeekAvgMos",
                   "ma10",
                   "precip5d")
 
-lm_variables <- paste(lm_variables, collapse = "+")
-fmla <- paste("NumMosquitos", lm_variables, sep = "~")
+lm_variables2 <- paste(lm_variables2, collapse = "+")
+fmla2 <- paste("NumMosquitos", lm_variables2, sep = "~")
 
-lm2 <- lm(fmla, data = train)
+lm2 <- lm(fmla2, data = train)
 
 train$lm2NumMosq <- predict(lm2, newdata = train)
 test$lm2NumMosq <- predict(lm2, newdata = test)
 
-plot(fitted(lm2), residuals(lm2))
 summary(lm2)
+
+print(paste("RMSE score of lm1: ", round(RMSE(train$lm2NumMosq, train$NumMosquitos), 1)))
 
 ggplot(data = train, aes(x=lmNumMosq, y=(NumMosquitos - lmNumMosq))) + 
   geom_point(alpha = 0.05) + stat_smooth(method=lm) +
@@ -147,35 +154,25 @@ ggplot(data = train, aes(x=lmNumMosq, y=(NumMosquitos - lmNumMosq))) +
 
 ```
 
+This results in an even lower R^2 value of 0.06 and a higher RMSE error score. 
+
 # CRISP Iteration 2
 
 ## Data Understanding: Mosquito number distribution
 
-I next wanted to go back and examine the distribution of the Mosquito counts a bit further. 
+In order to get a better estimate of mosquito counts, I next wanted to go back and examine the distribution of the Mosquito counts a bit further. 
 
 ```{r Mosquito Distribution}
 par(mfcol = c(2,2))
-hist(train$NumMosquitos)
+hist(train$NumMosquitos, col = "lightblue")
 qqnorm(train$NumMosquitos)
-hist(log2(train$NumMosquitos))
+hist(log2(train$NumMosquitos), col = "lightblue")
 qqnorm(log2(train$NumMosquitos))
 par(mfcol = c(1,1))
 ```
 
 The total number is capped at 50 mosquitos, and the distribution is centered close to zero with no negative values. Most observations have only 1 mosquito. I attempted to use log2 transformation on mosquito number but that did not improve the regression. 
 
-I will now try to group the number of mosquitos into bins, according to quartiles. These bins will be ordinal factors. Since we know that mosquito counts can never dip below zero, I will replace negative values for predicted number of mosquitos to zero before using this in the prediction for West Nile Virus. 
-
-
-```{r Binning mosquito number}
-train$NumMosQuartile <- with(train, cut(NumMosquitos, breaks=quantile(train$NumMosquitos, probs=seq(0,1, by=0.25), na.rm=TRUE), include.lowest=TRUE))
-
-test$lmNumMosq[test$lmNumMosq <= 0] <- 1
-
-test$NumMosQuartile <- with(test, cut(lmNumMosq, breaks=quantile(train$NumMosquitos, probs=seq(0,1, by=0.25), na.rm=TRUE), include.lowest=TRUE))
-
-#sum(is.na(test$NumMosQuartile))
-```
 
 ## Modeling: Poisson Regression
 
@@ -189,13 +186,15 @@ test$glm1NumMosq <- predict(glm1, newdata = test)
 
 summary(glm1)
 
+print(paste("RMSE score of lm1: ", round(RMSE(train$glm1NumMosq, train$NumMosquitos), 1)))
+
 ggplot(data = train, aes(x=glm1NumMosq, y=(NumMosquitos - glm1NumMosq))) + 
   geom_point(alpha = 0.05) + stat_smooth(method = lm) + 
   ggtitle("Residual plot for estimating Mosquito number using Poisson regression model on weather data") + 
   xlab("Predicted number of Mosquitos in training set") + ylab("Residual error (Actual - Predicted)")  
 ```
 
-This is much worse, as it only predicts up to 3 mosquitos per trap and appears to undercount mosquitos quite a bit. 
+This is much worse, as it only predicts up to 3 mosquitos per trap and appears to undercount mosquitos quite a bit. The RMSE is much higher at 1955. Thus far, the first linear regression model is the best for predicting Mosquito number on the training data. 
 
 
 ## Data understanding: WNV presence distribution
@@ -205,7 +204,7 @@ Moving on to predicting our target variable, the presence of West Nile Virus (Wn
 ```{r}
 table(train$WnvPresent)
 WnvPresentOverall <- table(train$WnvPresent)[2] / sum(table(train$WnvPresent))
-WnvPresentOverall
+round(WnvPresentOverall, 3)
 ```
 
 Finding WNV is rare, in only ~ 5% of cases. This means our classifier is unbalanced and should be kept in mind when coming up with models that accurately predict such a rare event. 
@@ -213,13 +212,16 @@ Finding WNV is rare, in only ~ 5% of cases. This means our classifier is unbalan
 ## Modeling: Logistic regression to predict WNV infection
 
 ```{r}
-lgm1 <- glm(WnvPresent ~ NumMosQuartile + ma10 + WetBulb + Tmin + Summer + Year, data = train, family = binomial(link = "logit"))
+
+lgm1 <- glm(WnvPresent ~ NumMosquitos + ma10 + WetBulb + Tmin + Summer + Year, data = train, family = binomial(link = "logit"))
 
 train$Wnv.glm.Pred <- predict(lgm1, newdata = train, type = "response")
 
 # Use linear regression for mosquito number to approximate mosquito number in test set
 test$NumMosquitos <- test$lmNumMosq
 test$Wnv.glm.Pred <- predict(lgm1, newdata = test, type = "response")
+glm.submission1 <- select(test, Id, WnvPresent = Wnv.glm.Pred)
+write_csv(glm.submission1, path = "./data/glm.submission1.csv")
 
 summary(lgm1)
 ```
@@ -231,23 +233,63 @@ Now we can take a look at how well our model will perform based on where the cut
 model.evaluate(train$WnvPresent, train$Wnv.glm.Pred)
 ```
 
-The AUC for the test set, after submitting the predicted probabilities to Kaggle was 0.700. Since this is a bit lower than the 0.814 AUC from the training set, this model is likely overfit to the training set. 
+AUC is 0.8184 on training data. 
+
+## Using bins for mosquito number
+
+I will now try to group the number of mosquitos into bins, according to quartiles. These bins will be ordinal factors. Since we know that mosquito counts can never dip below zero, I will replace negative values for predicted number of mosquitos to zero before using this in the prediction for West Nile Virus. 
+
+
+```{r Binning mosquito number}
+train$NumMosQuartile <- with(train, cut(NumMosquitos, breaks=quantile(train$NumMosquitos, probs=seq(0,1, by=0.25), na.rm=TRUE), include.lowest=TRUE))
+
+test$lmNumMosq[test$lmNumMosq <= 0] <- 1
+
+test$NumMosQuartile <- with(test, cut(lmNumMosq, breaks=quantile(train$NumMosquitos, probs=seq(0,1, by=0.25), na.rm=TRUE), include.lowest=TRUE))
+
+train$NumMosQuartile <- as.factor(train$NumMosQuartile)
+test$NumMosQuartile <- as.factor(test$NumMosQuartile)
+```
+
+## Modeling: Logistic regression to predict WNV infection with binned mosquito numbers
+
+```{r}
+lgm2 <- glm(WnvPresent ~ NumMosQuartile + ma10 + WetBulb + Tmin + Summer + Year, data = train, family = binomial(link = "logit"))
+
+train$Wnv.glm2.Pred <- predict(lgm2, newdata = train, type = "response")
+
+# Use linear regression for mosquito number to approximate mosquito number in test set
+test$NumMosquitos <- test$NumMosQuartile
+test$Wnv.glm2.Pred <- predict(lgm2, newdata = test, type = "response")
+glm.submission2 <- select(test, Id, WnvPresent = Wnv.glm2.Pred)
+write_csv(glm.submission2, path = "./data/glm.submission2.csv")
+
+summary(lgm2)
+```
+
+### Evaluation 
+
+```{r}
+model.evaluate(train$WnvPresent, train$Wnv.glm2.Pred)
+```
+
+The AUC for the test set, after submitting the predicted probabilities to Kaggle was 0.700. Since this is a bit lower than the 0.841 AUC from the training set, this model is likely overfit to the training set. 
 
 ## Data understanding: Number of mosquitos, revisited
 
 One important feature of how this data is collected and organized, is that the number of mosquitos in each trap is actually spread out over multiple rows. Therefore, we should collapse and combine multiple rows to find the number of mosquitos present in the environment. We also gain information from the separate rows mostly for the species information - some species are found in rows that are positive and not in rows that are negative from the same trap and this is useful information. 
 
 ```{r Real counts of Mosquitos and Poisson}
-fmla <- paste("Mosq_count", lm_variables, sep = "~")
+fmla3 <- paste("Mosq_count", lm_variables, sep = "~")
 
-glm1 <- glm(fmla, data = train, family = "poisson")
+glm2 <- glm(fmla3, data = train, family = "poisson")
 
-train$glm1NumMosq <- predict(glm1, newdata = train)
-test$glm1NumMosq <- predict(glm1, newdata = test)
+train$glm2NumMosq <- predict(glm2, newdata = train)
+test$glm2NumMosq <- predict(glm2, newdata = test)
 
-summary(glm1)
+summary(glm2)
 
-ggplot(data = train, aes(x=glm1NumMosq, y=(NumMosquitos - glm1NumMosq))) + 
+ggplot(data = train, aes(x=glm2NumMosq, y=(NumMosquitos - glm2NumMosq))) + 
   geom_point(alpha = 0.05) + stat_smooth() + 
   ggtitle("Residual plot for estimating Mosquito number using Poisson regression model on weather data") + 
   xlab("Predicted number of Mosquitos in training set") + ylab("Residual error (Actual - Predicted)")
@@ -268,16 +310,16 @@ This feature was used by winning competitors to estimate the number of mosquitos
 ## Modeling: Using number of rows as proxy for mosquito number in logistic regression
 
 ```{r nrows Log Reg}
-lgm2 <- glm(WnvPresent ~ nrows + ma10 + WetBulb + Tmin + Summer + Year, data = train, family = binomial(link = "logit"))
+lgm3 <- glm(WnvPresent ~ nrows + ma10 + WetBulb + Tmin + Summer + Year, data = train, family = binomial(link = "logit"))
 
-train$Wnv.glm2.Pred <- predict(lgm2, newdata = train, type = "response")
-test$Wnv.glm2.Pred <- predict(lgm2, newdata = test, type = "response")
+train$Wnv.glm3.Pred <- predict(lgm3, newdata = train, type = "response")
+test$Wnv.glm3.Pred <- predict(lgm3, newdata = test, type = "response")
 
-summary(lgm2)
-model.evaluate(train$WnvPresent, train$Wnv.glm2.Pred)
+summary(lgm3)
+model.evaluate(train$WnvPresent, train$Wnv.glm3.Pred)
 
-glm.submission2 <- select(test, Id, WnvPresent = Wnv.glm2.Pred)
-write_csv(glm.submission2, path = "./data/glm.submission2.csv")
+glm.submission3 <- select(test, Id, WnvPresent = Wnv.glm3.Pred)
+write_csv(glm.submission3, path = "./data/glm.submission3.csv")
 ```
 
 This gives an AUC of 0.711 on Kaggle.
@@ -311,26 +353,12 @@ glmboost <- train(WnvPresent2 ~ nrows + precip10d + ma10 + Tmin + Summer + Year,
               center = TRUE,
               family = Binomial(link = c("logit")))
 
-train$glmboos.Pred <- predict(glmboost, newdata = train, type = "prob")
+train$glmboost.Pred <- predict(glmboost, newdata = train, type = "prob")
 test$glmboost.Pred <- predict(glmboost, newdata = test, type = "prob")
-test$glmboos.Pred2 <- test$glmboost.Pred[,2]
-
-# set.seed(300)
-# glmboost2 <- train(WnvPresent2 ~ nrows + precip10d + ma10 + Tmin + Summer + Year + geo.hot.cl + WnvAvg,
-#               data = train, 
-#               method = "glmboost",
-#               metric = "ROC",
-#               trControl = ctrl,
-#               tuneLength = 5,
-#               center = TRUE,
-#               family = Binomial(link = c("logit")))
-# 
-# glmboost2
-# glmboost2.Pred <- predict(glmboost2, newdata = train, type = "prob")
-# train$glmboos2.Pred2 <- glmboost2.Pred[,2]
-# glmboost2.Pred <- predict(glmboost2, newdata = test, type = "prob")
-# test$glmboos2.Pred2 <- glmboost2.Pred[,2]
-# summary(train$geo.hot.cl)
+test$glmboost.Pred2 <- test$glmboost.Pred[,2]
+glm.submission4 <- select(test, Id, WnvPresent = glmboost.Pred2)
+write_csv(glm.submission4, path = "./data/glm.submission4.csv")
+model.evaluate(train$WnvPresent, train$glmboost.Pred[,2])
 ```
 
 Glmboost delivers 0.720 AUC on Kaggle. 
