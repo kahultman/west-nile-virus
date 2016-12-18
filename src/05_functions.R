@@ -21,3 +21,7 @@ model.evaluate <- function(actual, predicted){
   plot(perf)
   auc(actual, predicted)
 }
+
+RMSE <- function(x, y){
+  sqrt(sum((x-y)^2))
+}

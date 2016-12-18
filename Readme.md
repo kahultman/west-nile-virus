@@ -5,3 +5,15 @@ This project will attempt to predict the likelihood of West Nile Virus in mosqui
 To recreate my analysis, clone this repository or download the project to your computer. Then download the data files from Kaggle. The files need to be unzipped and placed in a folder called 'data' in the project folder. 
 
 All code is found in the src folder. The R scripts are to be run in order of their filename, so 01_weather.R should be the first script run. The technical draft and other .Rmd files can then be knitted. 
+
+## Necessary packages
+* tidyverse
+* plyr
+* caret
+* ggmap
+* gganimate
+* animation
+* caTools
+* zoo
+* ROCR
+* pROC

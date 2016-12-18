@@ -17,7 +17,7 @@ knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_knit$set(root.dir = '../')
 ```
 
-This project will attempt to predict the likelihood of a positive test for West Nile Virus (WNV) in mosquitos captured using traps around Chicago, IL. The data sets originate from the Kaggle competition, [West Nile Virus Prediction](https://www.kaggle.com/c/predict-west-nile-virus). 
+This project will attempt to predict the likelihood of a positive test for West Nile Virus (WNV) in mosquitoes captured using traps around Chicago, IL. The data sets originate from the Kaggle competition, [West Nile Virus Prediction](https://www.kaggle.com/c/predict-west-nile-virus). 
 
 The analysis will follow an iterative approach to finding a production model for West Nile forecasting. There are several data science iterative methods, and I will use the [CRISP](./images/CRISP.png) model for organizing this project. Additionally, this analysis conforms to reproducible research standards and can be reconstructed from source files available at my [GitHub](https://github.com/kahultman/west-nile-virus) repository.
 
@@ -25,43 +25,43 @@ The analysis will follow an iterative approach to finding a production model for
 
 ## Business Understanding 
 
-The goal for this project is to develop a predictive model that will forecast the probability of WNV presense in 138 mosquito traps around Chicago over the course of a season. WNV is a communicable disease that is spread through its most common vector, mosquitos. Most people infected with WNV develop no symtoms, but 1% will develop neurological symptoms including headache, high fever, neck stiffness, disorientation, coma, tremors, seizures, or paralysis, according to the [CDC](https://www.cdc.gov/westnile/index.html). There are no medical treatments or cures for WNV, so preventative measures are required to reduce infection to the human population. Local community methods of mosquito control include reduction of larval habitats and applying insecticides targetting larvae or adult mosquitoes.  
+The goal for this project is to develop a predictive model that will forecast the probability of WNV presence in 138 mosquito traps around Chicago over the course of a season. WNV is a communicable disease that is spread through its most common vector, mosquitoes. Most people infected with WNV develop no symtoms, but 1% will develop neurological symptoms including headache, high fever, neck stiffness, disorientation, coma, tremors, seizures, or paralysis, according to the [CDC](https://www.cdc.gov/westnile/index.html). There are no medical treatments or cures for WNV, so preventative measures are required to reduce infection to the human population. Local community methods of mosquito control include reduction of larval habitats and applying insecticides targetting larvae or adult mosquitoes.  
 
-Being able to predict the most likely sites of WNV outbreak is highly valuable to reduce the financial and human cost of over-application of insecticides. This project will focus on developing a predictive model based on geographic information, weather conditions, presense of mosquito species, and historical trends of mosquito populations and WNV presense in the Chicago area.   
+Being able to predict the most likely sites of WNV outbreak is highly valuable to reduce the financial and human cost of over-application of insecticides. This project will focus on developing a predictive model based on geographic information, weather conditions, presence of mosquito species, and historical trends of mosquito populations and WNV presence in the Chicago area.   
 
 ## Data Understanding 
 
-Kaggle supplies five data sets for the competition, three of which can be used in model training. The train.csv file includes several variables associated with each West Nile Virus test including the trap id, geo-coordinates, date, species of mosquito present, number of mosquitos present, and a binary variable indicating the presence or absence of West Nile Virus (WnvPresent), our target variable. The test.csv contains all of the same features as the train.csv file except the number of mosquitos present and the target WnvPresent variable. These data sets were obtained from West Nile Virus testing period between 2007 and 2014 with the training set containing the odd years and the test set containing the even years. The weather.csv file contains historic weather data collected at the O'Hare and Midway airports concurrent with the mosquito testing time period. The spray.csv file includes the date and location of chemical spraying conducted by the city during 2011 and 2013. Since this spray data set would only have a large impact during one of the training years, I did not include the spray data in any of my models. For the weather data, since the differences in variables between O'Hare and Midway were generally small, I chose to  use only the O'Hare data for all traps, rather than compute the closest station for each trap. 
+Kaggle supplies five data sets for the competition, three of which can be used in model training. The train.csv file includes several variables associated with each West Nile Virus test including the trap id, geo-coordinates, date, species of mosquito present, number of mosquitoes present, and a binary variable indicating the presence or absence of West Nile Virus (WnvPresent), our target variable. The test.csv contains all of the same features as the train.csv file except the number of mosquitoes present and the target WnvPresent variable. These data sets were obtained from West Nile Virus testing period between 2007 and 2014 with the training set containing the odd years and the test set containing the even years. The weather.csv file contains historic weather data collected at the O'Hare and Midway airports concurrent with the mosquito testing time period. The spray.csv file includes the date and location of chemical spraying conducted by the city during 2011 and 2013. Since this spray data set would only have a large impact during one of the training years, I did not include the spray data in any of my models. For the weather data, since the differences in variables between O'Hare and Midway were generally small, I chose to  use only the O'Hare data for all traps, rather than compute the closest station for each trap. 
 
-One of the largest factors influencing viral load within a population is the size of the population. A larger population means there are more mosquitos who can become infected and it also increases the number of interactions between hosts, allowing faster spread of virus from individual to individual. The size of the population can be estimated from the number of mosquitos found in each trap. However, *this variable is not present in the test set*, and will need to be imputed from other variables before a final model can be fit to the presence of West Nile using population as an input. 
+One of the largest factors influencing viral load within a population is the size of the population. A larger population means there are more mosquitoes who can become infected and it also increases the number of interactions between hosts, allowing faster spread of virus from individual to individual. The size of the population can be estimated from the number of mosquitoes found in each trap. However, *this variable is not present in the test set*, and will need to be imputed from other variables before a final model can be fit to the presence of West Nile using population as an input. 
 
 ```{r load | plot number and wnv present}
 library(plyr)
 suppressMessages(library(tidyverse))
 load("./data/train.RData")
 load("./data/test.RData")
-source("./src/functions.R")
+source("./src/05_functions.R")
 
 ggplot(train, aes(x=WnvPresent, y=NumMosquitos)) + 
   geom_jitter(aes(color=WnvPresent)) + 
-  ggtitle("Number of mosquitos in West Nile \nVirus negative and positive traps") + 
-  xlab("West Nile Virus present in trap") + ylab("Number of mosquitos in trap")
+  ggtitle("Number of mosquitoes in West Nile \nVirus negative and positive traps") + 
+  xlab("West Nile Virus present in trap") + ylab("Number of mosquitoes in trap")
 
 train %>% group_by(Trap, Week) %>% 
   summarise(WNVrate = sum(WnvPresent)/n(), NumMosPer = sum(NumMosquitos)/n()) %>% 
   ggplot(aes(log2(NumMosPer), WNVrate)) + geom_point() + stat_smooth() +
   ggtitle("Scatterplot of mosquito count in traps to WNV rate") +
-  xlab("Number of mosquitos in traps per week") + ylab("WNV positive rate")
+  xlab("Number of mosquitoes in traps per week") + ylab("WNV positive rate")
 ```
 
-Based on this initial data exploration, I will first try and develop a model that predicts the number of mosquitos in each trap and then use that predicted value as a variable in a model that predicts whether West Nile is present or absent. For predicting the number of mosquitos, I will first attempt using weather variables and weekly historic averages. Before modeling I examined scatterplots of various input variables agains mosquito counts, like the graph below comparing temperature to mosquito counts. 
+Based on this initial data exploration, I will first try and develop a model that predicts the number of mosquitoes in each trap and then use that predicted value as a variable in a model that predicts whether West Nile is present or absent. For predicting the number of mosquitoes, I will first attempt using weather variables and weekly historic averages. Before modeling I examined scatterplots of various input variables agains mosquito counts, like the graph below comparing temperature to mosquito counts. 
 
 ```{r plot temp vs num}
 ggplot(train, aes(x=Tavg, y=NumMosquitos)) + 
   geom_jitter() + 
   geom_smooth(method=lm) + 
-  ggtitle("Number of mosquitos vs average daily temperature") + 
-  xlab("Average daily temperature, degree F") + ylab("Number of mosquitos per trap")
+  ggtitle("Number of mosquitoes vs average daily temperature") + 
+  xlab("Average daily temperature, degree F") + ylab("Number of mosquitoes per trap")
 
 ```
 
@@ -71,7 +71,7 @@ I cleaned up the weather and training data sets to impute missing values and del
 
 ## Modeling: Linear regression to predict mosquito population
 
-For this first round of modeling, I will use linear regression to predict the number of mosquitos using weather data and historical averages per week. I expect that higher average temperatures and greater moisture should have a positive effect on the mosquito population.
+For this first round of modeling, I will use linear regression to predict the number of mosquitoes using weather data and historical averages per week. I expect that higher average temperatures and greater moisture should have a positive effect on the mosquito population.
 
 Then I will use logistic regression to estimate the probability of the presence of West Nile Virus. 
 
@@ -117,12 +117,12 @@ print(paste("RMSE score of lm1: ", round(RMSE(train$lmNumMosq, train$NumMosquito
 ggplot(data = train, aes(x=lmNumMosq, y=(NumMosquitos - lmNumMosq))) + 
   geom_point(alpha = 0.05) + 
   ggtitle("Residual plot for estimating Mosquito number using linear model on weather data") +
-  xlab("Predicted number of Mosquitos in training set") + 
+  xlab("Predicted number of mosquitoes in training set") + 
   ylab("Residual error (Actual - Predicted)") + 
   stat_smooth(method=lm)
 ```
 
-The residual plot appears to show bias in overestimating mosquitos at the low end and underestimating at the high end. However, the trend shows that this is indeed zero. Let's now include historical averages for each week in the year. We can also remove some variables that were not significantly informative. 
+The residual plot appears to show bias in overestimating mosquitoes at the low end and underestimating at the high end. However, the trend shows that this is indeed zero. Let's now include historical averages for each week in the year. We can also remove some variables that were not significantly informative. 
 
 ```{r mosquito linear regression 2}
 
@@ -150,7 +150,7 @@ print(paste("RMSE score of lm1: ", round(RMSE(train$lm2NumMosq, train$NumMosquit
 ggplot(data = train, aes(x=lmNumMosq, y=(NumMosquitos - lmNumMosq))) + 
   geom_point(alpha = 0.05) + stat_smooth(method=lm) +
   ggtitle("Residual plot for estimating Mosquito number using linear model on weather data") +
-  xlab("Predicted number of Mosquitos in training set") + ylab("Residual error (Actual - Predicted)") 
+  xlab("Predicted number of mosquitoes in training set") + ylab("Residual error (Actual - Predicted)") 
 
 ```
 
@@ -171,11 +171,11 @@ qqnorm(log2(train$NumMosquitos))
 par(mfcol = c(1,1))
 ```
 
-The total number is capped at 50 mosquitos, and the distribution is centered close to zero with no negative values. Most observations have only 1 mosquito. I attempted to use log2 transformation on mosquito number but that did not improve the regression. 
+The total number is capped at 50 mosquitoes, and the distribution is centered close to zero with no negative values. Most observations have only 1 mosquito. I attempted to use log2 transformation on mosquito number but that did not improve the regression. 
 
 ## Modeling: Poisson Regression
 
-The distribution of mosquitos looks closer to a capped Poisson distribution and this can be used to fit a general linear model. 
+The distribution of mosquitoes looks closer to a capped Poisson distribution and this can be used to fit a general linear model. 
 
 ```{r Poisson regression}
 glm1 <- glm(fmla, data = train, family = "poisson")
@@ -190,10 +190,10 @@ print(paste("RMSE score of lm1: ", round(RMSE(train$glm1NumMosq, train$NumMosqui
 ggplot(data = train, aes(x=glm1NumMosq, y=(NumMosquitos - glm1NumMosq))) + 
   geom_point(alpha = 0.05) + stat_smooth(method = lm) + 
   ggtitle("Residual plot for estimating Mosquito number using Poisson regression model on weather data") + 
-  xlab("Predicted number of Mosquitos in training set") + ylab("Residual error (Actual - Predicted)")  
+  xlab("Predicted number of mosquitoes in training set") + ylab("Residual error (Actual - Predicted)")  
 ```
 
-This is much worse, as it only predicts up to 3 mosquitos per trap and appears to undercount mosquitos quite a bit. The RMSE is much higher at 1955. Thus far, the first linear regression model is the best for predicting Mosquito number on the training data. 
+This is much worse, as it only predicts up to 3 mosquitoes per trap and appears to undercount mosquitoes quite a bit. The RMSE is much higher at 1955. Thus far, the first linear regression model is the best for predicting Mosquito number on the training data. 
 
 ## Data understanding: WNV presence distribution
 
@@ -234,7 +234,7 @@ AUC is 0.8184 on training data.
 
 ## Using bins for mosquito number
 
-I will now try to group the number of mosquitos into bins, according to quartiles. These bins will be ordinal factors. Since we know that mosquito counts can never dip below zero, I will replace negative values for predicted number of mosquitos to zero before using this in the prediction for West Nile Virus. 
+I will now try to group the number of mosquitoes into bins, according to quartiles. These bins will be ordinal factors. Since we know that mosquito counts can never dip below zero, I will replace negative values for predicted number of mosquitoes to zero before using this in the prediction for West Nile Virus. 
 
 
 ```{r Binning mosquito number}
@@ -274,11 +274,11 @@ The AUC for the test set, after submitting the predicted probabilities to Kaggle
 
 # CRISP Iteration 3
 
-## Data understanding: Number of mosquitos, revisited
+## Data understanding: Number of mosquitoes, revisited
 
-One important feature of how this data is collected and organized, is that the number of mosquitos in each trap is actually spread out over multiple rows. Therefore, we should collapse and combine multiple rows to find the number of mosquitos present in the environment. We also gain information from the separate rows mostly for the species information - some species are found in rows that are positive and not in rows that are negative from the same trap and this is useful information. 
+One important feature of how this data is collected and organized, is that the number of mosquitoes in each trap is actually spread out over multiple rows. Therefore, we should collapse and combine multiple rows to find the number of mosquitoes present in the environment. We also gain information from the separate rows mostly for the species information - some species are found in rows that are positive and not in rows that are negative from the same trap and this is useful information. 
 
-```{r Real counts of Mosquitos and Poisson}
+```{r Real counts of mosquitoes and Poisson}
 fmla3 <- paste("Mosq_count", lm_variables, sep = "~")
 
 glm2 <- glm(fmla3, data = train, family = "poisson")
@@ -291,20 +291,20 @@ summary(glm2)
 ggplot(data = train, aes(x=glm2NumMosq, y=(NumMosquitos - glm2NumMosq))) + 
   geom_point(alpha = 0.05) + stat_smooth(method = lm) + 
   ggtitle("Residual plot for estimating Mosquito number using Poisson regression model on weather data") + 
-  xlab("Predicted number of Mosquitos in training set") + ylab("Residual error (Actual - Predicted)")
+  xlab("Predicted number of mosquitoes in training set") + ylab("Residual error (Actual - Predicted)")
 ```
 
-The number of rows in the training set for each trap-date combination is correlated with total mosquitos in the trap. This feature, the number of rows for trap-date, is present in the test set as well. 
+The number of rows in the training set for each trap-date combination is correlated with total mosquitoes in the trap. This feature, the number of rows for trap-date, is present in the test set as well. 
 
 ```{r number of rows vs mosquito count}
 ggplot(data = train, aes(nrows, Mosq_count)) + 
   geom_point() + 
-  ggtitle("Number of rows for each Trap reveals an estimate for total number of mosquitos")
+  ggtitle("Number of rows for each Trap reveals an estimate for total number of mosquitoes")
 
 cor(train$nrows, train$NumMosquitos)
 ```
 
-This feature was used by winning competitors to estimate the number of mosquitos. However, I feel this is a bit of cheating for the business understanding of the project which involves predicting the probability of WNV for an entire year. In actual practice, we would not know how many 'trapfulls' amounts of mosquitos will be tested in the future. 
+This feature was used by winning competitors to estimate the number of mosquitoes. However, I feel this is a bit of cheating for the business understanding of the project which involves predicting the probability of WNV for an entire year. In actual practice, we would not know how many 'trapfulls' amounts of mosquitoes will be tested in the future. 
 
 ## Modeling: Using number of rows as proxy for mosquito number in logistic regression
 
@@ -389,9 +389,9 @@ There are various ways to incorporate geography. I could incorporate the trap id
 
 Instead, I am choosing to group the traps into clusters and include the cluster as a modeling parameter. The reasoning for this is that suspect that the true risk based on geography has a much lower actual precision than our ability to define latitude or longitude. 
 
-## Data preparation: Clustering traps according to location and WNV presense
+## Data preparation: Clustering traps according to location and WNV presence
 
-To create clusters of traps I want to incorporate not only geographical information, but WNV rate as well. This will help to create breaks in my clusters that are informative for predicting future WNV rate. The code for clustering is found in the "06_geo_cluster.R" script.
+To create clusters of traps I want to incorporate not only geographical information, but WNV rate as well. This will help to create breaks in my clusters that are informative for predicting future WNV rate. The code for clustering is found in the "04_geo_cluster.R" script.
 
 ```{r Geo clustering}
 load("./data/train_geo.RData")
