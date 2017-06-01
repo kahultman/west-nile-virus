@@ -3,7 +3,7 @@
 suppressMessages(library(tidyverse))
 train <- read_csv("./data/train.csv")
 test <- read_csv("./data/test.csv")
-source("./src/functions.R")
+source("./src/05_functions.R")
 
 # Set target variable as logical
 train$WnvPresent <- as.logical(train$WnvPresent)

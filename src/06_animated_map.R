@@ -18,7 +18,5 @@ map_mosq <- ggplot(train, aes(x=Longitude, y=Latitude,
 
 map_mosq
 
-animated_map_mosq <- gg_animate(map_mosq, interval=0.5)
+gganimate(map_mosq, interval=0.5, filename = "./images/mosq_map.gif")
 
-
-gg_animate_save(animated_map_mosq, filename = "./images/mosq_map.gif")
